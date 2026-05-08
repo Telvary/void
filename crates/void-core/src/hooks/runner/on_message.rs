@@ -20,6 +20,7 @@ impl HookRunner {
                 matches!(&h.trigger, Trigger::NewMessage { connector } if
                 connector.is_none() || connector.as_deref() == Some(&msg.connector))
             })
+            .filter(|h| h.active_window.as_ref().map_or(true, |w| w.is_active_now()))
             .cloned()
             .collect();
 

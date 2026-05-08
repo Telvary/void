@@ -1,7 +1,7 @@
 use clap::{Args, Subcommand};
 
 use crate::output::resolve_connector_filter;
-use void_core::hooks::{self, Hook, PromptConfig, Trigger};
+use void_core::hooks::{self, ActiveWindow, Hook, PromptConfig, Trigger, Weekday};
 
 #[derive(Debug, Args)]
 pub struct HookArgs {
@@ -10,6 +10,7 @@ pub struct HookArgs {
 }
 
 #[derive(Debug, Subcommand)]
+#[allow(clippy::large_enum_variant)]
 pub enum HookCommand {
     /// List all hooks
     List,
@@ -39,6 +40,18 @@ pub enum HookCommand {
         /// The agent to execute the hook (e.g. "claude", "cursor")
         #[arg(long, default_value = "claude")]
         agent: String,
+        /// Active window: days of the week (comma-separated, e.g. "mon,tue,wed,thu,fri")
+        #[arg(long)]
+        active_days: Option<String>,
+        /// Active window: start time in HH:MM 24h format (e.g. "08:00")
+        #[arg(long, requires = "active_days")]
+        active_start: Option<String>,
+        /// Active window: end time in HH:MM 24h format (e.g. "21:00")
+        #[arg(long, requires = "active_days")]
+        active_end: Option<String>,
+        /// Active window: UTC offset in hours (e.g. 2 for UTC+2, -5 for UTC-5). Defaults to local time.
+        #[arg(long)]
+        active_utc_offset: Option<i32>,
     },
     /// Show a hook's full configuration
     Show {
@@ -96,6 +109,10 @@ pub fn run(args: &HookArgs) -> anyhow::Result<()> {
             prompt_file,
             max_turns,
             agent,
+            active_days,
+            active_start,
+            active_end,
+            active_utc_offset,
         } => cmd_create(
             &dir,
             name,
@@ -106,6 +123,10 @@ pub fn run(args: &HookArgs) -> anyhow::Result<()> {
             prompt_file.as_deref(),
             *max_turns,
             agent,
+            active_days.as_deref(),
+            active_start.as_deref(),
+            active_end.as_deref(),
+            *active_utc_offset,
         ),
         HookCommand::Show { name } => cmd_show(&dir, name),
         HookCommand::Delete { name } => cmd_delete(&dir, name),
@@ -134,6 +155,10 @@ fn cmd_create(
     prompt_file: Option<&str>,
     max_turns: usize,
     agent: &str,
+    active_days: Option<&str>,
+    active_start: Option<&str>,
+    active_end: Option<&str>,
+    active_utc_offset: Option<i32>,
 ) -> anyhow::Result<()> {
     let prompt_text = match (prompt, prompt_file) {
         (Some(text), _) => text.to_string(),
@@ -164,12 +189,46 @@ fn cmd_create(
         ),
     };
 
+    let active_window = if let Some(days_str) = active_days {
+        let days: Vec<Weekday> = days_str
+            .split(',')
+            .map(|s| {
+                Weekday::parse(s.trim()).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Invalid day '{}'. Use: mon,tue,wed,thu,fri,sat,sun",
+                        s.trim()
+                    )
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        if days.is_empty() {
+            anyhow::bail!("--active-days must contain at least one day");
+        }
+
+        let start = active_start.unwrap_or("00:00").to_string();
+        let end = active_end.unwrap_or("23:59").to_string();
+
+        validate_time_format(&start)?;
+        validate_time_format(&end)?;
+
+        Some(ActiveWindow {
+            days,
+            start,
+            end,
+            utc_offset_hours: active_utc_offset,
+        })
+    } else {
+        None
+    };
+
     let hook = Hook {
         name: name.to_string(),
         enabled: true,
         max_turns,
         agent: agent.to_string(),
         extra_args: Vec::new(),
+        active_window,
         trigger,
         prompt: PromptConfig { text: prompt_text },
     };
@@ -177,6 +236,23 @@ fn cmd_create(
     hooks::save_hook(dir, &hook)?;
     let slug = hooks::slugify(name);
     eprintln!("Hook '{}' created: {}/{}.toml", name, dir.display(), slug);
+    Ok(())
+}
+
+fn validate_time_format(time: &str) -> anyhow::Result<()> {
+    let parts: Vec<&str> = time.split(':').collect();
+    if parts.len() != 2 {
+        anyhow::bail!("Invalid time format '{}'. Expected HH:MM", time);
+    }
+    let h: u32 = parts[0]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("Invalid hour in '{}'", time))?;
+    let m: u32 = parts[1]
+        .parse()
+        .map_err(|_| anyhow::anyhow!("Invalid minute in '{}'", time))?;
+    if h > 23 || m > 59 {
+        anyhow::bail!("Time '{}' out of range (00:00 - 23:59)", time);
+    }
     Ok(())
 }
 

@@ -67,6 +67,13 @@ impl HookRunner {
                         break;
                     }
 
+                    if let Some(ref window) = hook.active_window {
+                        if !window.is_active_now() {
+                            info!(hook = %hook_name, "skipping scheduled hook: outside active window");
+                            continue;
+                        }
+                    }
+
                     let _permit = match sem.acquire().await {
                         Ok(p) => p,
                         Err(_) => break,

@@ -2,7 +2,7 @@ use crate::hooks::execute::extract_error_from_stream;
 use crate::hooks::hook_fs::{
     delete_hook, find_hook, load_hooks, save_hook, slugify, update_hook_enabled,
 };
-use crate::hooks::model::{Hook, PromptConfig, Trigger};
+use crate::hooks::model::{ActiveWindow, Hook, PromptConfig, Trigger, Weekday};
 use crate::hooks::placeholders::expand_placeholders;
 use crate::models::Message;
 
@@ -29,6 +29,7 @@ fn hook_roundtrip() {
         max_turns: 5,
         agent: "claude".into(),
         extra_args: Vec::new(),
+        active_window: None,
         trigger: Trigger::NewMessage {
             connector: Some("gmail".into()),
         },
@@ -54,6 +55,7 @@ fn schedule_hook_roundtrip() {
         max_turns: 10,
         agent: "claude".into(),
         extra_args: Vec::new(),
+        active_window: None,
         trigger: Trigger::Schedule {
             cron: "0 9 * * 1-5".into(),
         },
@@ -78,11 +80,15 @@ fn hook_extra_args_roundtrip() {
             "sonnet".into(),
             "--dangerously-skip-permissions".into(),
         ],
+        active_window: None,
         trigger: Trigger::NewMessage { connector: None },
         prompt: PromptConfig { text: "x".into() },
     };
     let toml_str = toml::to_string_pretty(&hook).unwrap();
-    assert!(toml_str.contains("extra_args"), "extra_args must be present:\n{toml_str}");
+    assert!(
+        toml_str.contains("extra_args"),
+        "extra_args must be present:\n{toml_str}"
+    );
     let parsed: Hook = toml::from_str(&toml_str).unwrap();
     assert_eq!(
         parsed.extra_args,
@@ -140,6 +146,7 @@ fn hook_extra_args_omitted_when_empty() {
         max_turns: 1,
         agent: "claude".into(),
         extra_args: Vec::new(),
+        active_window: None,
         trigger: Trigger::NewMessage { connector: None },
         prompt: PromptConfig { text: "x".into() },
     };
@@ -203,6 +210,7 @@ fn save_and_load_hook() {
         max_turns: 3,
         agent: "claude".into(),
         extra_args: Vec::new(),
+        active_window: None,
         trigger: Trigger::NewMessage { connector: None },
         prompt: PromptConfig {
             text: "test".into(),
@@ -224,6 +232,7 @@ fn delete_hook_works() {
         max_turns: 3,
         agent: "claude".into(),
         extra_args: Vec::new(),
+        active_window: None,
         trigger: Trigger::NewMessage { connector: None },
         prompt: PromptConfig {
             text: "test".into(),
@@ -245,6 +254,7 @@ fn find_hook_works() {
         max_turns: 2,
         agent: "claude".into(),
         extra_args: Vec::new(),
+        active_window: None,
         trigger: Trigger::NewMessage { connector: None },
         prompt: PromptConfig {
             text: "prompt".into(),
@@ -258,6 +268,105 @@ fn find_hook_works() {
 }
 
 #[test]
+fn active_window_roundtrip() {
+    let hook = Hook {
+        name: "Windowed Hook".into(),
+        enabled: true,
+        max_turns: 3,
+        agent: "claude".into(),
+        extra_args: Vec::new(),
+        active_window: Some(ActiveWindow {
+            days: vec![
+                Weekday::Mon,
+                Weekday::Tue,
+                Weekday::Wed,
+                Weekday::Thu,
+                Weekday::Fri,
+            ],
+            start: "08:00".into(),
+            end: "21:00".into(),
+            utc_offset_hours: Some(2),
+        }),
+        trigger: Trigger::NewMessage { connector: None },
+        prompt: PromptConfig { text: "x".into() },
+    };
+    let toml_str = toml::to_string_pretty(&hook).unwrap();
+    assert!(
+        toml_str.contains("[active_window]"),
+        "expected active_window section:\n{toml_str}"
+    );
+    assert!(
+        toml_str.contains("08:00"),
+        "expected start time:\n{toml_str}"
+    );
+    let parsed: Hook = toml::from_str(&toml_str).unwrap();
+    let window = parsed
+        .active_window
+        .expect("active_window should be present");
+    assert_eq!(window.days.len(), 5);
+    assert_eq!(window.start, "08:00");
+    assert_eq!(window.end, "21:00");
+    assert_eq!(window.utc_offset_hours, Some(2));
+}
+
+#[test]
+fn active_window_omitted_when_none() {
+    let hook = Hook {
+        name: "NoWindow".into(),
+        enabled: true,
+        max_turns: 1,
+        agent: "claude".into(),
+        extra_args: Vec::new(),
+        active_window: None,
+        trigger: Trigger::NewMessage { connector: None },
+        prompt: PromptConfig { text: "x".into() },
+    };
+    let toml_str = toml::to_string_pretty(&hook).unwrap();
+    assert!(
+        !toml_str.contains("active_window"),
+        "expected active_window to be omitted:\n{toml_str}"
+    );
+}
+
+#[test]
+fn active_window_is_active_checks_time_range() {
+    let window = ActiveWindow {
+        days: vec![
+            Weekday::Mon,
+            Weekday::Tue,
+            Weekday::Wed,
+            Weekday::Thu,
+            Weekday::Fri,
+            Weekday::Sat,
+            Weekday::Sun,
+        ],
+        start: "00:00".into(),
+        end: "23:59".into(),
+        utc_offset_hours: None,
+    };
+    assert!(window.is_active_now(), "all-day window should be active");
+
+    let window_never = ActiveWindow {
+        days: vec![],
+        start: "00:00".into(),
+        end: "23:59".into(),
+        utc_offset_hours: None,
+    };
+    assert!(
+        !window_never.is_active_now(),
+        "no-days window should never be active"
+    );
+}
+
+#[test]
+fn weekday_from_str_variants() {
+    assert_eq!(Weekday::parse("mon"), Some(Weekday::Mon));
+    assert_eq!(Weekday::parse("Monday"), Some(Weekday::Mon));
+    assert_eq!(Weekday::parse("FRI"), Some(Weekday::Fri));
+    assert_eq!(Weekday::parse("invalid"), None);
+}
+
+#[test]
 fn update_hook_enabled_toggles() {
     let dir = std::env::temp_dir().join(format!("void-hooks-test-{}", uuid::Uuid::new_v4()));
     let hook = Hook {
@@ -266,6 +375,7 @@ fn update_hook_enabled_toggles() {
         max_turns: 1,
         agent: "claude".into(),
         extra_args: Vec::new(),
+        active_window: None,
         trigger: Trigger::NewMessage { connector: None },
         prompt: PromptConfig { text: "x".into() },
     };
