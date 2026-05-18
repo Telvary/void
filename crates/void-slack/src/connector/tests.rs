@@ -1034,12 +1034,8 @@ fn build_socket_metadata_dm_with_thread() {
         is_muted: false,
         metadata: None,
     };
-    let meta = super::socket_mode::build_socket_metadata(
-        &conv,
-        "D1",
-        Some("1777282559.000100"),
-        None,
-    );
+    let meta =
+        super::socket_mode::build_socket_metadata(&conv, "D1", Some("1777282559.000100"), None);
     assert_eq!(meta["channel_kind"], "dm");
     assert_eq!(meta["channel_name"], "Alice");
     assert_eq!(meta["thread_ts"], "1777282559.000100");

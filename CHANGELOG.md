@@ -7,14 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-05-18
+
 ### Added
 
+- **Hooks** — Added `active_window` to restrict hook execution to specific days and hours.
 - **Hooks** — Added per-hook `extra_args` (a generic argv passthrough) so hooks can forward any agent-specific CLI flags without `void` having to know their spelling. All agent-specific flags — model selection, tool permissions, etc. — are the hook author's responsibility. Example: `extra_args = ["--model", "sonnet", "--dangerously-skip-permissions"]`.
+
+### Changed
+
+- **Hooks** — Replaced dedicated `model`, `allowed_tools`, and `dangerously_skip_permissions` fields with the generic `extra_args` passthrough.
+- **Sync** — Status logs now include timestamps; Slack is re-synced on any reconnect.
 
 ### Fixed
 
 - **Hooks** — When an agent exits non-zero with an empty stderr (e.g. Claude rate-limit rejections), the error surfaced on the console and in logs was blank. The executor now parses the stream-json stdout and extracts the final `result` / `rate_limit_event` record, so failures show something like `claude exited with exit status: 1: [HTTP 429, rate_limit=five_hour] You've hit your limit …`.
+- **Slack** — Thread replies are now fetched during backfill.
+- **Slack** — Permalinks are resolved via the native `(channel, ts)` pair.
 - **Slack** — Real-time messages ingested via Socket Mode now carry the same metadata as backfilled ones (`channel_id`, `channel_name`, `channel_kind`, optional `thread_ts`). Previously plain-text events ended up with `metadata: null`, which broke downstream consumers that relied on the channel name (e.g. notification hooks).
+- **Sync** — Broken connectors now surface errors instead of being silently skipped.
+- **Log** — Status macro output now uses full ISO-8601 timestamps.
+
+### Removed
+
+- **Knowledge Base** — Removed the `void kb` command and the entire Knowledge Base feature (daemon, indexing, and related config).
 
 ## [0.6.0] - 2026-04-23
 
