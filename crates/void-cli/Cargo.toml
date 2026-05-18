@@ -20,7 +20,6 @@ void-telegram = { workspace = true }
 void-gdrive = { workspace = true }
 void-hackernews = { workspace = true }
 void-agent = { workspace = true }
-void-kb = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

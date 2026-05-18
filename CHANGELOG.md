@@ -20,10 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Knowledge Base** — Added `void kb sync` and `void kb unsync` commands with hybrid semantic + grep search.
-- **Knowledge Base** — Included progress reporting with ETA during folder sync.
-- **Knowledge Base** — Respected `.gitignore` rules during folder sync.
-- **Knowledge Base** — Stored file mtime and boosted recent documents in search results.
 - **Config** — Added `ignore_conversations` option to any connection. Matching conversations are auto-muted on every sync start (case-insensitive substring match on name or external ID).
 - **Sync** — Added `--status` flag to show daemon and connector state, outputting as JSON.
 - **Contacts** — Added profile picture (`avatar_url`) to contacts and backfilled URLs for existing messages.
@@ -32,16 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Knowledge Base** — Made `void kb sync` registration-only, deferring the actual indexing to the sync daemon.
 - **Setup** — Slack re-authentication now keeps existing tokens on empty input and populates them as defaults.
 - **Setup** — Slack re-authentication prints the refresh token save path to clarify it's not in config.toml.
-- **Codebase** — Split large modules (hooks, config, and kb/db) and extracted duplicated forward helpers to a shared module.
+- **Codebase** — Split large modules (hooks, config) and extracted duplicated forward helpers to a shared module.
 
 ### Fixed
 
 - **CLI** — Fixed pagination metadata (`total_elements`, `total_pages`) being inflated when context dedup removed messages from the result set. Count and data queries now apply identical filtering at the SQL level.
-- **Knowledge Base** — Handled multi-byte UTF-8 characters in the text chunker.
-- **Knowledge Base** — Suppressed noisy html5ever foster-parenting warnings during sync.
 - **Gmail** — Included email subject in message metadata JSON.
 - **Gmail** — Enforced base64 and HTML formatting for email bodies.
 - **Calendar** — Validated and normalized datetime inputs to RFC 3339.

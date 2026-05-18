@@ -11,7 +11,6 @@ pub mod gmail;
 pub mod hackernews;
 pub mod hook;
 pub mod inbox;
-pub mod kb;
 pub mod messages;
 pub mod mute;
 pub mod pagination;

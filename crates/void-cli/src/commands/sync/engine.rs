@@ -195,8 +195,6 @@ pub async fn run(args: &SyncArgs) -> anyhow::Result<()> {
         });
     }
 
-    crate::commands::kb::spawn_kb_sync_loop(&store_path, cancel.clone()).await;
-
     let engine = SyncEngine::new(connectors, db, &store_path, hook_runner);
     engine.run(cancel).await
 }
