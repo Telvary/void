@@ -181,6 +181,111 @@ async fn list_chat_messages_passes_after_filter() {
 }
 
 #[tokio::test]
+async fn get_account_owner_profile_from_users_me() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/users/me"))
+        .and(query_param("account_id", "acc-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "provider_id": "ACoME",
+            "public_identifier": "matthieu"
+        })))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let owner = client.get_account_owner_profile("acc-1").await.unwrap();
+    assert_eq!(owner.provider_id, "ACoME");
+}
+
+#[tokio::test]
+async fn list_user_posts_encodes_provider_path() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/users/ACoME/posts"))
+        .and(query_param("account_id", "acc-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "object": "PostList",
+            "items": [{
+                "id": "7332661864792854528",
+                "social_id": "urn:li:activity:7332661864792854528",
+                "text": "Hello",
+                "parsed_datetime": "2026-05-26T19:01:02.468Z",
+                "comment_counter": 2
+            }]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let list = client
+        .list_user_posts("acc-1", "ACoME", None, 50)
+        .await
+        .unwrap();
+    assert_eq!(list.items[0].comment_counter, Some(2));
+}
+
+#[tokio::test]
+async fn list_post_comments_encodes_social_id() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/posts/urn%3Ali%3Aactivity%3A7332661864792854528/comments",
+        ))
+        .and(query_param("account_id", "acc-1"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "object": "CommentList",
+            "items": [{
+                "id": "c1",
+                "text": "Great!",
+                "author": "Jane",
+                "date": "2026-05-27T10:00:00.000Z"
+            }]
+        })))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let list = client
+        .list_post_comments(
+            "acc-1",
+            "urn:li:activity:7332661864792854528",
+            None,
+            None,
+            50,
+        )
+        .await
+        .unwrap();
+    assert_eq!(list.items[0].id, "c1");
+}
+
+#[tokio::test]
+async fn send_post_comment_posts_json() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(
+            "/api/v1/posts/urn%3Ali%3Aactivity%3A7332661864792854528/comments",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "new-comment-1"
+        })))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let id = client
+        .send_post_comment(
+            "acc-1",
+            "urn:li:activity:7332661864792854528",
+            "Thanks!",
+            Some("parent-c1"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(id, "new-comment-1");
+}
+
+#[tokio::test]
 async fn download_attachment_returns_bytes() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))

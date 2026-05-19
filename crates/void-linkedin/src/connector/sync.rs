@@ -9,6 +9,7 @@ use void_core::progress::BackfillProgress;
 use crate::api::{UnipileChat, UnipileClient, UnipileMessage};
 
 use super::extract;
+use super::posts_sync;
 use super::profiles::{build_message_metadata, ProfileCache};
 
 const CHAT_PAGE_LIMIT: u32 = 100;
@@ -84,6 +85,7 @@ pub(super) async fn run_sync(
                     db,
                     connection_id,
                     after.as_deref(),
+                    backfill_days,
                     &mut profile_cache,
                     &cancel,
                 )
@@ -177,17 +179,34 @@ async fn backfill_all(
     info!(
         connection_id,
         chats = chat_count,
-        "LinkedIn backfill finished"
+        "LinkedIn chat backfill finished"
     );
+
+    if let Err(e) = posts_sync::sync_posts_backfill(
+        client,
+        account_id,
+        db,
+        connection_id,
+        backfill_days,
+        profile_cache,
+        cancel,
+    )
+    .await
+    {
+        warn!(connection_id, error = %e, "LinkedIn post comments backfill failed");
+    }
+
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn sync_incremental(
     client: &UnipileClient,
     account_id: &str,
     db: &Arc<Database>,
     connection_id: &str,
     after: Option<&str>,
+    backfill_days: u64,
     profile_cache: &mut ProfileCache,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
@@ -226,6 +245,20 @@ async fn sync_incremental(
         if chat_cursor.is_none() {
             break;
         }
+    }
+
+    if let Err(e) = posts_sync::sync_posts_incremental(
+        client,
+        account_id,
+        db,
+        connection_id,
+        backfill_days,
+        profile_cache,
+        cancel,
+    )
+    .await
+    {
+        warn!(connection_id, error = %e, "LinkedIn post comments incremental sync failed");
     }
 
     db.set_sync_state(

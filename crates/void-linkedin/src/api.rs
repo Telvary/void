@@ -7,6 +7,9 @@ use serde_json::Value;
 
 use crate::error::LinkedInError;
 
+pub mod posts;
+pub use posts::{AccountOwnerProfile, UnipileComment, UnipileCommentAuthor, UnipilePost};
+
 /// Unipile LinkedIn payloads often use `0`/`1` integers where docs describe booleans.
 /// See https://developer.unipile.com/docs/message-payload
 mod flexible {
@@ -500,7 +503,7 @@ impl UnipileClient {
         Ok(bytes.to_vec())
     }
 
-    async fn parse_send_response(
+    pub(super) async fn parse_send_response(
         resp: reqwest::Response,
         action: &str,
     ) -> Result<String, LinkedInError> {

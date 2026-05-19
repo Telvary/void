@@ -1,5 +1,6 @@
 mod extract;
 mod media;
+mod posts_sync;
 mod profiles;
 mod send;
 mod sync;
@@ -159,12 +160,33 @@ impl Connector for LinkedInConnector {
         content: MessageContent,
         _in_thread: bool,
     ) -> anyhow::Result<String> {
-        let (conv_ext_id, _msg_ext_id) = send::parse_reply_id(message_id)?;
-        let chat_id = send::chat_id_from_conv_external(&self.config_id, &conv_ext_id)?;
-
+        let (conv_ext_id, msg_ext_id) = send::parse_reply_id(message_id)?;
         let text = send::text_for_message_content(&content);
         let file = send::file_path_for_message_content(&content);
+        if file.is_some() {
+            anyhow::bail!("LinkedIn post comment replies do not support file attachments yet");
+        }
 
+        if send::is_post_conversation(&conv_ext_id) {
+            let post_id = send::post_id_from_conv_external(&self.config_id, &conv_ext_id)?;
+            let comment_id = send::comment_id_from_msg_external(&self.config_id, &msg_ext_id)?;
+            let post = self
+                .client()
+                .get_post(&self.account_id, &post_id)
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            if post.social_id.is_empty() {
+                anyhow::bail!("post {post_id} has no social_id for comment reply");
+            }
+            let msg_id = self
+                .client()
+                .send_post_comment(&self.account_id, &post.social_id, text, Some(&comment_id))
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            return Ok(msg_id);
+        }
+
+        let chat_id = send::chat_id_from_conv_external(&self.config_id, &conv_ext_id)?;
         let msg_id = self
             .client()
             .send_message_in_chat(&chat_id, text, file)
