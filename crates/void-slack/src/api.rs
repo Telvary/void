@@ -657,7 +657,13 @@ pub struct SlackFile {
     pub filetype: Option<String>,
     pub size: Option<u64>,
     pub url_private: Option<String>,
+    #[serde(default)]
+    pub url_private_download: Option<String>,
     pub permalink: Option<String>,
+    #[serde(default)]
+    pub is_external: Option<bool>,
+    #[serde(default)]
+    pub external_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

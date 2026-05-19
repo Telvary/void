@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **LinkedIn** — Sync comments on your own posts via Unipile Posts & Comments API (one thread per post, nested comment replies, `void reply` on post comments).
+
+### Fixed
+
+- **Slack** — Skip external/Google and thumbnail-only attachments when caching files; prefer `url_private_download` to avoid repeated 404/401 warnings.
+
 ## [0.8.0] - 2026-05-19
 
 ### Added

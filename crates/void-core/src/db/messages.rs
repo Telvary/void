@@ -496,6 +496,7 @@ pub(super) fn messages_pending_file_download(
          WHERE connection_id = ?1 AND connector = ?2
            AND metadata LIKE '%url_private%'
            AND metadata NOT LIKE '%local_path%'
+           AND metadata NOT LIKE '%download_skipped%'
          ORDER BY timestamp DESC
          LIMIT ?3",
     )?;

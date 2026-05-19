@@ -8,6 +8,7 @@ use crate::api::SlackApiClient;
 use crate::error::SlackError;
 
 mod connector_trait;
+mod files;
 mod mapping;
 mod socket_mode;
 mod sync;
@@ -116,11 +117,22 @@ impl SlackConnector {
                 None => continue,
             };
             for file in files.iter_mut() {
-                let url = match file.get("url_private").and_then(|v| v.as_str()) {
+                let file_id = file.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+
+                if let Some(reason) = files::skip_download_reason(file) {
+                    tracing::debug!(
+                        file_id,
+                        reason,
+                        "skipping Slack file download (not cacheable locally)"
+                    );
+                    files::mark_download_skipped(file, reason);
+                    continue;
+                }
+
+                let url = match files::resolve_download_url(file) {
                     Some(u) => u.to_string(),
                     None => continue,
                 };
-                let file_id = file.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
                 let file_name = file.get("name").and_then(|v| v.as_str()).unwrap_or("file");
                 let local_name = format!("{file_id}_{file_name}");
                 let dest = dir.join(&local_name);
@@ -145,7 +157,17 @@ impl SlackConnector {
                             serde_json::Value::String(dest.to_string_lossy().into_owned());
                     }
                     Err(e) => {
-                        tracing::warn!(file_id, error = %e, "failed to download Slack file");
+                        let err_str = e.to_string();
+                        if err_str.contains("HTTP 404") {
+                            tracing::debug!(
+                                file_id,
+                                error = %e,
+                                "Slack file no longer available for download"
+                            );
+                            files::mark_download_skipped(file, "not_found");
+                        } else {
+                            tracing::warn!(file_id, error = %e, "failed to download Slack file");
+                        }
                     }
                 }
             }

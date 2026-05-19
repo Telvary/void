@@ -304,18 +304,7 @@ impl SlackConnector {
 
             let files_json: Vec<serde_json::Value> = raw_files
                 .iter()
-                .map(|f| {
-                    serde_json::json!({
-                        "id": f.get("id").and_then(|v| v.as_str()).unwrap_or(""),
-                        "name": f.get("name").and_then(|v| v.as_str()),
-                        "title": f.get("title").and_then(|v| v.as_str()),
-                        "mimetype": f.get("mimetype").and_then(|v| v.as_str()),
-                        "filetype": f.get("filetype").and_then(|v| v.as_str()),
-                        "size": f.get("size").and_then(|v| v.as_u64()),
-                        "url_private": f.get("url_private").and_then(|v| v.as_str()),
-                        "permalink": f.get("permalink").and_then(|v| v.as_str()),
-                    })
-                })
+                .map(super::files::file_metadata_entry_from_event)
                 .collect();
 
             (summary, Some(files_json), mtype)

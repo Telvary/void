@@ -90,18 +90,7 @@ pub(crate) fn map_message_cached(
             let files_json: Vec<serde_json::Value> = msg
                 .files
                 .iter()
-                .map(|f| {
-                    serde_json::json!({
-                        "id": f.id,
-                        "name": f.name,
-                        "title": f.title,
-                        "mimetype": f.mimetype,
-                        "filetype": f.filetype,
-                        "size": f.size,
-                        "url_private": f.url_private,
-                        "permalink": f.permalink,
-                    })
-                })
+                .map(super::files::file_metadata_entry)
                 .collect();
             meta["files"] = serde_json::Value::Array(files_json);
         }
