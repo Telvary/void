@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -9,6 +10,9 @@ use void_core::progress::BackfillProgress;
 use crate::api::{HnClient, HnItem};
 
 const HN_BASE: &str = "https://news.ycombinator.com/item?id=";
+
+/// Wall-clock threshold to detect hibernation gaps (same rationale as Gmail/Slack).
+const IDLE_THRESHOLD: Duration = Duration::from_secs(3 * 60);
 
 pub(super) async fn run_sync(
     db: &Arc<Database>,
@@ -23,13 +27,24 @@ pub(super) async fn run_sync(
     ensure_feed_conversation(db, connection_id)?;
 
     info!(connection_id, "running initial HN sync");
-    if let Err(e) = poll_stories(&client, db, connection_id, keywords, min_score, &cancel).await {
+    if let Err(e) = poll_stories(
+        &client,
+        db,
+        connection_id,
+        keywords,
+        min_score,
+        &cancel,
+        true,
+    )
+    .await
+    {
         error!(connection_id, error = %e, "initial HN sync failed");
     }
 
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll_interval_secs));
     // First tick fires immediately; skip it since we just did initial sync.
     interval.tick().await;
+    let mut last_poll = SystemTime::now();
 
     loop {
         tokio::select! {
@@ -38,10 +53,34 @@ pub(super) async fn run_sync(
                 break;
             }
             _ = interval.tick() => {
-                info!(connection_id, "polling Hacker News");
-                if let Err(e) = poll_stories(&client, db, connection_id, keywords, min_score, &cancel).await {
+                let elapsed = last_poll.elapsed().unwrap_or_default();
+                if elapsed > IDLE_THRESHOLD {
+                    warn!(
+                        connection_id,
+                        idle_secs = elapsed.as_secs(),
+                        "HN sync was idle, catching up"
+                    );
+                    void_core::status!(
+                        "[hackernews:{connection_id}] sync idle for {}s, catching up",
+                        elapsed.as_secs(),
+                    );
+                } else {
+                    info!(connection_id, "polling Hacker News");
+                }
+                if let Err(e) = poll_stories(
+                    &client,
+                    db,
+                    connection_id,
+                    keywords,
+                    min_score,
+                    &cancel,
+                    elapsed > IDLE_THRESHOLD,
+                )
+                .await
+                {
                     error!(connection_id, error = %e, "HN poll error");
                 }
+                last_poll = SystemTime::now();
             }
         }
     }
@@ -73,15 +112,19 @@ async fn poll_stories(
     keywords: &[String],
     min_score: u32,
     cancel: &CancellationToken,
+    show_progress: bool,
 ) -> anyhow::Result<()> {
     let story_ids = client.top_stories().await.unwrap_or_default();
     let total = story_ids.len() as u64;
 
     let conv_id = format!("{connection_id}-feed");
 
-    let mut progress = BackfillProgress::new(&format!("hackernews:{connection_id}"), "stories")
-        .with_secondary("ingested");
-    progress.set_items_total(total);
+    let mut progress = show_progress.then(|| {
+        let mut p = BackfillProgress::new(&format!("hackernews:{connection_id}"), "stories")
+            .with_secondary("ingested");
+        p.set_items_total(total);
+        p
+    });
 
     for id in story_ids {
         if cancel.is_cancelled() {
@@ -90,35 +133,47 @@ async fn poll_stories(
 
         let external_id = format!("hackernews_{connection_id}_{id}");
         if db.message_exists(connection_id, &external_id)? {
-            progress.inc(1);
+            if let Some(ref mut p) = progress {
+                p.inc(1);
+            }
             continue;
         }
 
         let item = match client.get_item(id).await {
             Ok(Some(item)) => item,
             Ok(None) => {
-                progress.inc(1);
+                if let Some(ref mut p) = progress {
+                    p.inc(1);
+                }
                 continue;
             }
             Err(e) => {
                 warn!(id, error = %e, "failed to fetch HN item");
-                progress.inc(1);
+                if let Some(ref mut p) = progress {
+                    p.inc(1);
+                }
                 continue;
             }
         };
 
         if !matches_filters(&item, keywords, min_score) {
-            progress.inc(1);
+            if let Some(ref mut p) = progress {
+                p.inc(1);
+            }
             continue;
         }
 
         let msg = build_message(&item, connection_id, &conv_id);
         db.upsert_message(&msg)?;
-        progress.inc(1);
-        progress.inc_secondary(1);
+        if let Some(ref mut p) = progress {
+            p.inc(1);
+            p.inc_secondary(1);
+        }
     }
 
-    progress.finish();
+    if let Some(p) = progress {
+        p.finish();
+    }
 
     if !cancel.is_cancelled() {
         db.set_sync_state(

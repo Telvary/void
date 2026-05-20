@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -14,6 +15,10 @@ use super::profiles::{build_message_metadata, ProfileCache};
 
 const CHAT_PAGE_LIMIT: u32 = 100;
 const MESSAGE_PAGE_LIMIT: u32 = 100;
+
+/// Wall-clock threshold to detect hibernation gaps (same rationale as Gmail/Slack:
+/// `SystemTime` survives macOS sleep where the monotonic clock pauses).
+const IDLE_THRESHOLD: Duration = Duration::from_secs(3 * 60);
 
 struct SyncCtx<'a> {
     client: &'a UnipileClient,
@@ -64,12 +69,31 @@ pub(super) async fn run_sync(
             db.set_sync_state(connection_id, "backfill_done", "1")?;
             info!(connection_id, "LinkedIn backfill complete");
         }
+    } else {
+        info!(
+            connection_id,
+            "LinkedIn backfill already complete, catching up missed messages"
+        );
+        if let Err(e) = catch_up_all(
+            client,
+            account_id,
+            db,
+            connection_id,
+            backfill_days,
+            &mut profile_cache,
+            &cancel,
+        )
+        .await
+        {
+            warn!(connection_id, error = %e, "LinkedIn catch-up on start failed");
+        }
     }
 
     void_core::status!("[linkedin:{connection_id}] listening for new messages");
 
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(poll_interval_secs));
     interval.tick().await;
+    let mut last_poll = SystemTime::now();
 
     loop {
         tokio::select! {
@@ -78,21 +102,45 @@ pub(super) async fn run_sync(
                 break;
             }
             _ = interval.tick() => {
+                let elapsed = last_poll.elapsed().unwrap_or_default();
                 let after = effective_after_iso(db, connection_id, backfill_days);
-                if let Err(e) = sync_incremental(
-                    client,
-                    account_id,
-                    db,
-                    connection_id,
-                    after.as_deref(),
-                    backfill_days,
-                    &mut profile_cache,
-                    &cancel,
-                )
-                .await
-                {
-                    warn!(connection_id, error = %e, "LinkedIn incremental sync failed");
+                let result = if elapsed > IDLE_THRESHOLD {
+                    warn!(
+                        connection_id,
+                        idle_secs = elapsed.as_secs(),
+                        "LinkedIn sync was idle, catching up"
+                    );
+                    void_core::status!(
+                        "[linkedin:{connection_id}] sync idle for {}s, catching up",
+                        elapsed.as_secs(),
+                    );
+                    catch_up_all(
+                        client,
+                        account_id,
+                        db,
+                        connection_id,
+                        backfill_days,
+                        &mut profile_cache,
+                        &cancel,
+                    )
+                    .await
+                } else {
+                    sync_incremental(
+                        client,
+                        account_id,
+                        db,
+                        connection_id,
+                        after.as_deref(),
+                        backfill_days,
+                        &mut profile_cache,
+                        &cancel,
+                    )
+                    .await
+                };
+                if let Err(e) = result {
+                    warn!(connection_id, error = %e, "LinkedIn sync poll failed");
                 }
+                last_poll = SystemTime::now();
             }
         }
     }
@@ -129,7 +177,107 @@ async fn backfill_all(
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let after = backfill_cutoff_iso(backfill_days);
-    let mut progress = BackfillProgress::new(&format!("linkedin:{connection_id}"), "chats");
+    sync_chats_with_progress(ChatSyncParams {
+        client,
+        account_id,
+        db,
+        connection_id,
+        after: after.as_str(),
+        profile_cache,
+        cancel,
+        show_progress: true,
+    })
+    .await?;
+
+    if let Err(e) = posts_sync::sync_posts_backfill(
+        client,
+        account_id,
+        db,
+        connection_id,
+        backfill_days,
+        profile_cache,
+        cancel,
+    )
+    .await
+    {
+        warn!(connection_id, error = %e, "LinkedIn post comments backfill failed");
+    }
+
+    Ok(())
+}
+
+async fn catch_up_all(
+    client: &UnipileClient,
+    account_id: &str,
+    db: &Arc<Database>,
+    connection_id: &str,
+    backfill_days: u64,
+    profile_cache: &mut ProfileCache,
+    cancel: &CancellationToken,
+) -> anyhow::Result<()> {
+    let after = effective_after_iso(db, connection_id, backfill_days)
+        .unwrap_or_else(|| backfill_cutoff_iso(backfill_days));
+    void_core::status!("[linkedin:{connection_id}] catch-up — syncing chats since {after}");
+    sync_chats_with_progress(ChatSyncParams {
+        client,
+        account_id,
+        db,
+        connection_id,
+        after: after.as_str(),
+        profile_cache,
+        cancel,
+        show_progress: true,
+    })
+    .await?;
+
+    if let Err(e) = posts_sync::sync_posts_incremental(
+        client,
+        account_id,
+        db,
+        connection_id,
+        backfill_days,
+        profile_cache,
+        cancel,
+    )
+    .await
+    {
+        warn!(connection_id, error = %e, "LinkedIn post comments catch-up failed");
+    }
+
+    db.set_sync_state(
+        connection_id,
+        "linkedin_last_poll",
+        &chrono::Utc::now().timestamp().to_string(),
+    )?;
+
+    Ok(())
+}
+
+struct ChatSyncParams<'a> {
+    client: &'a UnipileClient,
+    account_id: &'a str,
+    db: &'a Arc<Database>,
+    connection_id: &'a str,
+    after: &'a str,
+    profile_cache: &'a mut ProfileCache,
+    cancel: &'a CancellationToken,
+    show_progress: bool,
+}
+
+async fn sync_chats_with_progress(params: ChatSyncParams<'_>) -> anyhow::Result<()> {
+    let ChatSyncParams {
+        client,
+        account_id,
+        db,
+        connection_id,
+        after,
+        profile_cache,
+        cancel,
+        show_progress,
+    } = params;
+
+    let mut progress =
+        show_progress.then(|| BackfillProgress::new(&format!("linkedin:{connection_id}"), "chats"));
     let mut chat_cursor: Option<String> = None;
     let mut chat_count = 0u64;
 
@@ -142,7 +290,7 @@ async fn backfill_all(
             .list_chats(
                 account_id,
                 chat_cursor.as_deref(),
-                Some(after.as_str()),
+                Some(after),
                 CHAT_PAGE_LIMIT,
             )
             .await
@@ -161,12 +309,14 @@ async fn backfill_all(
                     profile_cache,
                 },
                 chat,
-                Some(after.as_str()),
+                Some(after),
                 cancel,
             )
             .await?;
             chat_count += 1;
-            progress.inc(1);
+            if let Some(ref mut p) = progress {
+                p.inc(1);
+            }
         }
 
         chat_cursor = page.cursor;
@@ -175,27 +325,15 @@ async fn backfill_all(
         }
     }
 
-    progress.finish();
+    if let Some(p) = progress {
+        p.finish();
+    }
     info!(
         connection_id,
         chats = chat_count,
-        "LinkedIn chat backfill finished"
+        since = after,
+        "LinkedIn chat sync finished"
     );
-
-    if let Err(e) = posts_sync::sync_posts_backfill(
-        client,
-        account_id,
-        db,
-        connection_id,
-        backfill_days,
-        profile_cache,
-        cancel,
-    )
-    .await
-    {
-        warn!(connection_id, error = %e, "LinkedIn post comments backfill failed");
-    }
-
     Ok(())
 }
 
