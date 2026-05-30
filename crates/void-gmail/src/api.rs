@@ -125,22 +125,54 @@ impl GmailApiClient {
         label_id: Option<&str>,
     ) -> Result<HistoryListResponse, GmailError> {
         debug!(start_history_id, ?label_id, "gmail: list_history");
-        let mut params = vec![("startHistoryId", start_history_id.to_string())];
-        if let Some(label) = label_id {
-            params.push(("labelId", label.to_string()));
+        let mut all_records: Vec<HistoryRecord> = Vec::new();
+        let mut page_token: Option<String> = None;
+        let mut latest_history_id: Option<String> = None;
+        let max_pages = 10u32;
+
+        for page in 0..max_pages {
+            let mut params = vec![("startHistoryId", start_history_id.to_string())];
+            if let Some(label) = label_id {
+                params.push(("labelId", label.to_string()));
+            }
+            if let Some(pt) = &page_token {
+                params.push(("pageToken", pt.clone()));
+            }
+            let resp: HistoryListResponse = self
+                .http
+                .get(format!("{}/gmail/v1/users/me/history", self.base_url))
+                .bearer_auth(&self.access_token)
+                .query(&params)
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            if let Some(records) = resp.history {
+                let count = records.len();
+                all_records.extend(records);
+                debug!(page, record_count = count, "gmail: listed history page");
+            }
+            latest_history_id = resp.history_id.or(latest_history_id);
+            page_token = resp.next_page_token;
+            if page_token.is_none() {
+                break;
+            }
         }
-        let resp: HistoryListResponse = self
-            .http
-            .get(format!("{}/gmail/v1/users/me/history", self.base_url))
-            .bearer_auth(&self.access_token)
-            .query(&params)
-            .send()
-            .await?
-            .json()
-            .await?;
-        let count = resp.history.as_ref().map(|h| h.len()).unwrap_or(0);
-        debug!(record_count = count, "gmail: listed history");
-        Ok(resp)
+
+        debug!(
+            total_records = all_records.len(),
+            "gmail: listed history (all pages)"
+        );
+        Ok(HistoryListResponse {
+            history: if all_records.is_empty() {
+                None
+            } else {
+                Some(all_records)
+            },
+            history_id: latest_history_id,
+            next_page_token: None,
+        })
     }
 
     pub async fn modify_message(
@@ -658,6 +690,7 @@ fn find_attachment_id_in_part(part: &MessagePart, target_mime: &str) -> Option<S
 pub struct HistoryListResponse {
     pub history: Option<Vec<HistoryRecord>>,
     pub history_id: Option<String>,
+    pub next_page_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
