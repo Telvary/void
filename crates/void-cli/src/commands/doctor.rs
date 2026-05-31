@@ -1,10 +1,21 @@
+use clap::Args;
+
 use crate::commands::connector_factory;
 use crate::commands::setup::prompt::confirm_default_yes;
 use void_core::config::{self, VoidConfig};
 use void_core::db::Database;
 
-pub async fn run() -> anyhow::Result<()> {
+#[derive(Debug, Args)]
+pub struct DoctorArgs {
+    /// Report issues and exit with status 1 (skip interactive re-auth prompts)
+    #[arg(long)]
+    pub non_interactive: bool,
+}
+
+pub async fn run(args: &DoctorArgs) -> anyhow::Result<()> {
     eprintln!("void doctor: checking system health...\n");
+
+    let mut issues = 0usize;
 
     let config_path = config::default_config_path();
     if config_path.exists() {
@@ -12,7 +23,8 @@ pub async fn run() -> anyhow::Result<()> {
     } else {
         eprintln!("[!!] No config file found at {}", config_path.display());
         eprintln!("     Run `void setup` to create one.");
-        return Ok(());
+        issues += 1;
+        return finish(args.non_interactive, issues);
     }
 
     let cfg = match VoidConfig::load(&config_path) {
@@ -22,7 +34,8 @@ pub async fn run() -> anyhow::Result<()> {
         }
         Err(e) => {
             eprintln!("[!!] Config parse error: {e}");
-            return Ok(());
+            issues += 1;
+            return finish(args.non_interactive, issues);
         }
     };
 
@@ -34,6 +47,7 @@ pub async fn run() -> anyhow::Result<()> {
         }
         Err(e) => {
             eprintln!("[!!] Database error: {e}");
+            issues += 1;
             None
         }
     };
@@ -50,6 +64,7 @@ pub async fn run() -> anyhow::Result<()> {
     eprintln!();
     if cfg.connections.is_empty() {
         eprintln!("[!!] No connections configured");
+        issues += 1;
     } else {
         eprintln!("[OK] {} connection(s) configured:", cfg.connections.len());
 
@@ -88,27 +103,30 @@ pub async fn run() -> anyhow::Result<()> {
 
         if !failed_connections.is_empty() {
             eprintln!("\n[!!] Some connections failed health checks.");
-            let mut cfg_mut = cfg.clone();
-            for conn_config in failed_connections {
-                if confirm_default_yes(&format!(
-                    "Would you like to re-authenticate connection '{}'?",
-                    conn_config.id
-                )) {
-                    eprintln!("Re-authenticating {}...", conn_config.id);
-                    if let Some(idx) = cfg_mut
-                        .connections
-                        .iter()
-                        .position(|c| c.id == conn_config.id)
-                    {
-                        if let Err(e) = crate::commands::setup::connection_menu::reauthenticate_specific_connection(
-                            &mut cfg_mut,
-                            &config_path,
-                            &store_path,
-                            idx,
-                        )
-                        .await
+            issues += failed_connections.len();
+            if !args.non_interactive {
+                let mut cfg_mut = cfg.clone();
+                for conn_config in failed_connections {
+                    if confirm_default_yes(&format!(
+                        "Would you like to re-authenticate connection '{}'?",
+                        conn_config.id
+                    )) {
+                        eprintln!("Re-authenticating {}...", conn_config.id);
+                        if let Some(idx) = cfg_mut
+                            .connections
+                            .iter()
+                            .position(|c| c.id == conn_config.id)
                         {
-                            eprintln!("  ✗ Error during re-authentication: {}", e);
+                            if let Err(e) = crate::commands::setup::connection_menu::reauthenticate_specific_connection(
+                                &mut cfg_mut,
+                                &config_path,
+                                &store_path,
+                                idx,
+                            )
+                            .await
+                            {
+                                eprintln!("  ✗ Error during re-authentication: {}", e);
+                            }
                         }
                     }
                 }
@@ -143,6 +161,13 @@ pub async fn run() -> anyhow::Result<()> {
         );
     }
 
+    finish(args.non_interactive, issues)
+}
+
+fn finish(non_interactive: bool, issues: usize) -> anyhow::Result<()> {
     eprintln!("\nDoctor check complete.");
+    if non_interactive && issues > 0 {
+        anyhow::bail!("doctor found {issues} issue(s)");
+    }
     Ok(())
 }

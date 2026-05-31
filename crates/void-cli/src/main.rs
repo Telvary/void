@@ -30,7 +30,7 @@ enum Command {
     /// Start background sync
     Sync(commands::sync::SyncArgs),
     /// Check configuration and connectivity
-    Doctor,
+    Doctor(commands::doctor::DoctorArgs),
     /// Show recent messages across all connectors
     Inbox(commands::inbox::InboxArgs),
     /// List conversations
@@ -111,7 +111,7 @@ async fn async_main(cli: Cli) -> anyhow::Result<()> {
     match &cli.command {
         Some(Command::Setup) => commands::setup::run().await,
         Some(Command::Sync(args)) => commands::sync::run(args).await,
-        Some(Command::Doctor) => commands::doctor::run().await,
+        Some(Command::Doctor(args)) => commands::doctor::run(args).await,
         Some(Command::Inbox(args)) => commands::inbox::run(args, !cli.no_context),
         Some(Command::Conversations(args)) => commands::inbox::run_conversations(args),
         Some(Command::Messages(args)) => commands::messages::run(args, !cli.no_context),
@@ -362,6 +362,15 @@ mod tests {
     }
 
     // --- Help surface tests ---
+
+    #[test]
+    fn parse_doctor_non_interactive() {
+        let cli = parse(&["void", "doctor", "--non-interactive"]);
+        match cli.command {
+            Some(Command::Doctor(ref args)) => assert!(args.non_interactive),
+            other => panic!("expected Doctor, got {other:?}"),
+        }
+    }
 
     #[test]
     fn help_gmail_lists_forward_subcommand() {

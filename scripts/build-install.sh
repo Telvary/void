@@ -2,7 +2,7 @@
 # Build and install the release binary.
 #
 # Usage:
-#   ./scripts/build-install.sh                    # run pre-flight checks, then build+install
+#   ./scripts/build-install.sh                    # run pre-flight checks, build+install, health check
 #   ./scripts/build-install.sh --skip-checks      # skip pre-flight checks (fast path)
 #   ./scripts/build-install.sh /custom/dir        # install to a custom directory
 set -euo pipefail
@@ -62,6 +62,9 @@ fi
 mv -f "$TMP_DEST" "$DEST"
 
 echo "==> Installed $BIN_NAME → $DEST"
+
+echo "==> Running post-install health check…"
+"$DEST" doctor --non-interactive
 
 # Check PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then

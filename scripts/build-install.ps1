@@ -44,6 +44,10 @@ Move-Item $TmpDest $Dest -Force
 
 Write-Host "==> Installed $BinName -> $Dest"
 
+Write-Host "==> Running post-install health check..."
+& $Dest doctor --non-interactive
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 # Check PATH.
 $pathEntries = ($env:PATH -split ';') | ForEach-Object { $_.TrimEnd('\') }
 $normalizedInstall = $InstallDir.TrimEnd('\')
