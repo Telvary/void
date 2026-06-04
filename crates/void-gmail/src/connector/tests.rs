@@ -490,6 +490,54 @@ fn compose_rfc2822_ascii_subject_unchanged() {
 }
 
 #[test]
+fn build_forward_body_uses_html_when_available() {
+    let html = "<div><p>Hello <b>world</b></p></div>";
+    let (body, is_html) = build_forward_body(
+        Some("See below"),
+        "Alice <alice@example.com>",
+        "Mon, 1 Jan 2024 10:00:00 +0000",
+        "Original subject",
+        "bob@example.com",
+        Some(html),
+        Some("plain fallback"),
+    );
+    assert!(is_html);
+    assert!(body.contains("gmail_quote"));
+    assert!(body.contains("See below"));
+    assert!(body.contains(html));
+    assert!(!body.contains("plain fallback"));
+}
+
+#[test]
+fn compose_rfc2822_ex_preserves_html_after_plain_forward_header() {
+    let (body, is_html) = build_forward_body(
+        None,
+        "Alice",
+        "Date",
+        "Subject",
+        "bob@example.com",
+        Some("<table><tr><td>Cell</td></tr></table>"),
+        None,
+    );
+    assert!(is_html);
+    let raw = compose_rfc2822_ex("a@b.com", "Fwd: Subj", &body, None, None, Some(is_html));
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(
+            raw.split("\r\n\r\n")
+                .nth(1)
+                .unwrap()
+                .replace("\r\n", "")
+                .as_bytes(),
+        )
+        .unwrap();
+    let decoded = String::from_utf8(decoded).unwrap();
+    assert!(decoded.contains("<table>"));
+    assert!(decoded.contains("<td>Cell</td>"));
+    assert!(!decoded.contains("<t<br>"));
+    assert!(!decoded.contains("<br><td>"));
+}
+
+#[test]
 fn html_to_markdown_strips_tags() {
     let md = html_to_markdown("<p>Hello <b>world</b></p>");
     assert!(md.contains("Hello"));

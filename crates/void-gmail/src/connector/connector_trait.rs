@@ -18,7 +18,9 @@ use void_core::models::*;
 use crate::api::GmailApiClient;
 use crate::auth;
 
-use super::compose::{compose_rfc2822, compose_rfc2822_with_attachment};
+use super::compose::{
+    build_forward_body, compose_rfc2822, compose_rfc2822_ex, compose_rfc2822_with_attachment,
+};
 use super::GmailConnector;
 
 #[async_trait]
@@ -268,22 +270,32 @@ impl Connector for GmailConnector {
             format!("Fwd: {orig_subject}")
         };
 
-        let orig_body = orig.text_body().unwrap_or_default();
+        let html_body = resolve_body_part(
+            &api,
+            external_id,
+            orig.html_body(),
+            orig.html_body_attachment_id(),
+        )
+        .await?;
+        let text_body = resolve_body_part(
+            &api,
+            external_id,
+            orig.text_body(),
+            orig.text_body_attachment_id(),
+        )
+        .await?;
 
-        let mut body = String::new();
-        if let Some(c) = comment {
-            body.push_str(c);
-            body.push_str("\r\n\r\n");
-        }
-        body.push_str("---------- Forwarded message ---------\r\n");
-        body.push_str(&format!("From: {orig_from}\r\n"));
-        body.push_str(&format!("Date: {orig_date}\r\n"));
-        body.push_str(&format!("Subject: {orig_subject}\r\n"));
-        body.push_str(&format!("To: {orig_to}\r\n"));
-        body.push_str("\r\n");
-        body.push_str(&orig_body);
+        let (body, is_html) = build_forward_body(
+            comment,
+            &orig_from,
+            &orig_date,
+            &orig_subject,
+            &orig_to,
+            html_body.as_deref(),
+            text_body.as_deref(),
+        );
 
-        let raw = compose_rfc2822(to, &subject, &body, None, None);
+        let raw = compose_rfc2822_ex(to, &subject, &body, None, None, Some(is_html));
         let encoded = URL_SAFE_NO_PAD.encode(raw.as_bytes());
 
         let resp = api.send_message(&encoded).await?;
@@ -291,4 +303,26 @@ impl Connector for GmailConnector {
         debug!(fwd_id = %fwd_id, "Gmail message forwarded");
         Ok(fwd_id)
     }
+}
+
+async fn resolve_body_part(
+    api: &GmailApiClient,
+    message_id: &str,
+    inline: Option<String>,
+    attachment_id: Option<String>,
+) -> anyhow::Result<Option<String>> {
+    if let Some(body) = inline.filter(|s| !s.is_empty()) {
+        return Ok(Some(body));
+    }
+    let Some(attachment_id) = attachment_id else {
+        return Ok(None);
+    };
+    let resp = api
+        .get_attachment(message_id, &attachment_id)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to fetch message body attachment: {e}"))?;
+    let data = resp
+        .data
+        .ok_or_else(|| anyhow::anyhow!("message body attachment has no data"))?;
+    Ok(crate::api::decode_attachment_data(&data))
 }
