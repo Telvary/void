@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use tracing::{debug, info, warn};
 
-use crate::config::{expand_tilde, resolve_config_path, StoreMode, VoidConfig};
+use crate::config::{default_config, expand_tilde, resolve_config_path, StoreMode, VoidConfig};
 use crate::db::Database;
 use crate::error::ConfigError;
 
@@ -54,10 +54,18 @@ impl ResolvedContext {
         let store_override = store_override.map(expand_tilde);
 
         if !client_config_path.exists() {
-            return Err(ConfigError::Other(format!(
-                "Config file not found: {}",
+            if let Some(parent) = client_config_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&client_config_path, default_config())?;
+            info!(
+                path = %client_config_path.display(),
+                "created default config file"
+            );
+            eprintln!(
+                "Created default config at {}\nEdit it to add your connections, then run `void sync --daemon`.",
                 client_config_path.display()
-            )));
+            );
         }
 
         if force_local_store {
