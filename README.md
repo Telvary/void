@@ -4,37 +4,15 @@ A unified command-line interface for interacting with WhatsApp, Telegram, Slack,
 
 ## Quick Start
 
-Install the latest release from [GitHub Releases](https://github.com/MaximeGaudin/void/releases/latest). Each command downloads the binary and extracts it to `~/bin` — make sure that directory is on your `PATH`.
+Install the latest release from [GitHub Releases](https://github.com/MaximeGaudin/void/releases/latest). Commands install to directories that are already on `PATH` by default on each platform.
 
-**macOS (Apple Silicon)**
-
-```bash
-mkdir -p ~/bin && curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-arm64.tar.gz | tar xz -C ~/bin
-```
-
-**macOS (Intel)**
-
-```bash
-mkdir -p ~/bin && curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-amd64.tar.gz | tar xz -C ~/bin
-```
-
-**Linux (x86_64)**
-
-```bash
-mkdir -p ~/bin && curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-amd64.tar.gz | tar xz -C ~/bin
-```
-
-**Linux (ARM64)**
-
-```bash
-mkdir -p ~/bin && curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-arm64.tar.gz | tar xz -C ~/bin
-```
-
-**Windows (PowerShell)**
-
-```powershell
-New-Item -ItemType Directory -Force -Path "$HOME\bin" | Out-Null; curl.exe -fsSL -o "$env:TEMP\void.zip" https://github.com/MaximeGaudin/void/releases/latest/download/void-windows-amd64.zip; Expand-Archive -Path "$env:TEMP\void.zip" -DestinationPath "$HOME\bin" -Force
-```
+| Platform | Install command |
+|----------|-----------------|
+| macOS (Apple Silicon) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-arm64.tar.gz \| sudo tar xz -C /usr/local/bin` |
+| macOS (Intel) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-amd64.tar.gz \| sudo tar xz -C /usr/local/bin` |
+| Linux (x86_64) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-amd64.tar.gz \| sudo tar xz -C /usr/local/bin` |
+| Linux (ARM64) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-arm64.tar.gz \| sudo tar xz -C /usr/local/bin` |
+| Windows (PowerShell) | `$dir="$env:LOCALAPPDATA\Programs\void"; New-Item -ItemType Directory -Force -Path $dir \| Out-Null; curl.exe -fsSL -o "$env:TEMP\void.zip" https://github.com/MaximeGaudin/void/releases/latest/download/void-windows-amd64.zip; Expand-Archive -Path "$env:TEMP\void.zip" -DestinationPath $dir -Force; $userPath=[Environment]::GetEnvironmentVariable('Path','User'); if ($userPath -notlike "*$dir*") { [Environment]::SetEnvironmentVariable('Path', "$userPath;$dir", 'User') }; $env:Path += ";$dir"` |
 
 Then configure and run:
 
