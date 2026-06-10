@@ -14,9 +14,16 @@ Install the latest release from [GitHub Releases](https://github.com/MaximeGaudi
 | Linux (ARM64) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-arm64.tar.gz \| sudo tar xz -C /usr/local/bin` |
 | Windows (PowerShell) | `$dir="$env:LOCALAPPDATA\Programs\void"; New-Item -ItemType Directory -Force -Path $dir \| Out-Null; curl.exe -fsSL -o "$env:TEMP\void.zip" https://github.com/MaximeGaudin/void/releases/latest/download/void-windows-amd64.zip; Expand-Archive -Path "$env:TEMP\void.zip" -DestinationPath $dir -Force; $userPath=[Environment]::GetEnvironmentVariable('Path','User'); if ($userPath -notlike "*$dir*") { [Environment]::SetEnvironmentVariable('Path', "$userPath;$dir", 'User') }; $env:Path += ";$dir"` |
 
-Then configure and run:
+Example (macOS Apple Silicon):
 
 ```bash
+# Install latest release
+curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-arm64.tar.gz | sudo tar xz -C /usr/local/bin
+# macOS (Intel):       curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-amd64.tar.gz | sudo tar xz -C /usr/local/bin
+# Linux (x86_64):      curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-amd64.tar.gz | sudo tar xz -C /usr/local/bin
+# Linux (ARM64):       curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-arm64.tar.gz | sudo tar xz -C /usr/local/bin
+# Windows (PowerShell): $dir="$env:LOCALAPPDATA\Programs\void"; New-Item -ItemType Directory -Force -Path $dir | Out-Null; curl.exe -fsSL -o "$env:TEMP\void.zip" https://github.com/MaximeGaudin/void/releases/latest/download/void-windows-amd64.zip; Expand-Archive -Path "$env:TEMP\void.zip" -DestinationPath $dir -Force; $userPath=[Environment]::GetEnvironmentVariable('Path','User'); if ($userPath -notlike "*$dir*") { [Environment]::SetEnvironmentVariable('Path', "$userPath;$dir", 'User') }; $env:Path += ";$dir"
+
 # Interactive setup — configure connectors, authenticate connections
 void setup
 
