@@ -3,11 +3,12 @@ use tracing::{debug, info};
 use void_core::db::Database;
 use void_core::models::CalendarEvent;
 
+use super::attendees::build_attendee_list;
 use super::mapping::map_event;
 use super::types::{CalendarConnector, CreateEventParams, UpdateEventParams};
 use crate::api::{
-    AttendeeRequest, AttendeeResponseRequest, ConferenceDataRequest, ConferenceSolutionKey,
-    CreateConferenceRequest, EventDateTimeRequest, InsertEventRequest, UpdateEventRequest,
+    AttendeeResponseRequest, ConferenceDataRequest, ConferenceSolutionKey, CreateConferenceRequest,
+    EventDateTimeRequest, InsertEventRequest, UpdateEventRequest,
 };
 
 impl CalendarConnector {
@@ -26,13 +27,7 @@ impl CalendarConnector {
         info!(connection_id = %self.connection_id, title = %params.title, calendar_id = %cal_id, "creating Calendar event");
 
         let timezone = "UTC".to_string();
-        let attendee_list = params.attendees.map(|a| {
-            a.split(',')
-                .map(|email| AttendeeRequest {
-                    email: email.trim().to_string(),
-                })
-                .collect::<Vec<_>>()
-        });
+        let attendee_list = build_attendee_list(&self.connection_id, params.attendees);
 
         let conference_data = if params.meet {
             Some(ConferenceDataRequest {

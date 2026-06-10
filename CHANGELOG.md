@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-06-10
+
+### Fixed
+
+- **Calendar** — Auto-include the calendar account owner in the attendee list when creating events with `--attendees` (the organizer was omitted from Google Calendar API requests).
+- **Remote** — Stage file attachments over SCP in proxied commands so send/reply with `--file` works in remote store mode.
+
+### Changed
+
+- **Docs** — Improved README quick start install instructions, including a curl one-liner.
+
 ## [0.9.0] - 2026-06-08
 
 ### Added

@@ -1,9 +1,10 @@
 use crate::api::*;
 use void_core::db::Database;
 use void_core::models::CalendarEvent;
-use wiremock::matchers::{method, path, query_param, query_param_is_missing};
+use wiremock::matchers::{body_string_contains, method, path, query_param, query_param_is_missing};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+use super::attendees::build_attendee_list;
 use super::mapping::{map_event, parse_date, parse_rfc3339};
 
 /// Runs the initial sync pagination loop using a pre-built API client (for testing without tokens).
@@ -497,4 +498,60 @@ async fn incremental_sync_deletes_cancelled_events() {
 
     let stored_token = db.get_sync_state("test-cal", "sync_token:primary").unwrap();
     assert_eq!(stored_token.as_deref(), Some("after-delete-token"));
+}
+
+#[tokio::test]
+async fn insert_event_request_includes_connection_owner() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .and(body_string_contains(r#""email":"mgaudin@gladia.io"#))
+        .and(body_string_contains(r#""email":"alice@example.com"#))
+        .respond_with(ResponseTemplate::new(200).set_body_string(
+            r#"{
+            "id": "ev-created",
+            "summary": "Team Sync",
+            "start": {"dateTime": "2026-06-11T07:00:00Z"},
+            "end": {"dateTime": "2026-06-11T07:30:00Z"},
+            "status": "confirmed",
+            "attendees": [
+                {"email": "mgaudin@gladia.io", "responseStatus": "accepted"},
+                {"email": "alice@example.com", "responseStatus": "needsAction"}
+            ]
+        }"#,
+        ))
+        .mount(&mock_server)
+        .await;
+
+    let api = CalendarApiClient::with_base_url("test-token", &mock_server.uri());
+    let attendees = build_attendee_list("mgaudin@gladia.io-calendar", Some("alice@example.com"));
+    let request = InsertEventRequest {
+        summary: "Team Sync".into(),
+        description: None,
+        start: EventDateTimeRequest {
+            date_time: "2026-06-11T07:00:00Z".into(),
+            time_zone: "UTC".into(),
+        },
+        end: EventDateTimeRequest {
+            date_time: "2026-06-11T07:30:00Z".into(),
+            time_zone: "UTC".into(),
+        },
+        attendees,
+        conference_data: None,
+    };
+
+    let resp = api
+        .insert_event("primary", &request, None, Some("all"))
+        .await
+        .unwrap();
+    let mapped = map_event(&resp, "mgaudin@gladia.io-calendar", "primary").unwrap();
+    let stored: Vec<String> = serde_json::from_value(mapped.attendees.unwrap()).unwrap();
+    assert_eq!(
+        stored,
+        vec![
+            "mgaudin@gladia.io".to_string(),
+            "alice@example.com".to_string()
+        ]
+    );
 }
