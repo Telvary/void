@@ -5,7 +5,7 @@
 ## Homebrew (macOS, recommended)
 
 ```bash
-brew install MaximeGaudin/void/void
+brew install MaximeGaudin/tap/void
 ```
 
 Homebrew handles the download, `PATH`, upgrades (`brew upgrade void`), and removes the macOS quarantine attribute for you — no Gatekeeper prompt.

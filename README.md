@@ -24,7 +24,7 @@ It is built for terminals, shell scripts, and AI agents:
 
 ```bash
 # macOS (Homebrew) — recommended
-brew install MaximeGaudin/void/void
+brew install MaximeGaudin/tap/void
 
 # macOS (Apple Silicon, direct)
 curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-arm64.tar.gz | sudo tar xz -C /usr/local/bin

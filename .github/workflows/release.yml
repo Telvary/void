@@ -130,17 +130,17 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: Update formula in MaximeGaudin/homebrew-void
+      - name: Update formula in MaximeGaudin/homebrew-tap
         env:
           # SSH private key of a read-write deploy key scoped to
-          # MaximeGaudin/homebrew-void. If unset, this step no-ops so the
+          # MaximeGaudin/homebrew-tap. If unset, this step no-ops so the
           # release never fails for lack of it.
           TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
         run: |
           set -euo pipefail
           if [ -z "${TAP_DEPLOY_KEY:-}" ]; then
             echo "::warning::HOMEBREW_TAP_DEPLOY_KEY not set — skipping Homebrew tap update."
-            echo "Add a read-write deploy key for MaximeGaudin/homebrew-void to auto-publish."
+            echo "Add a read-write deploy key for MaximeGaudin/homebrew-tap to auto-publish."
             exit 0
           fi
 
@@ -154,7 +154,7 @@ jobs:
           ARM_SHA=$(sha256sum artifacts/void-darwin-arm64.tar.gz | cut -d' ' -f1)
           AMD_SHA=$(sha256sum artifacts/void-darwin-amd64.tar.gz | cut -d' ' -f1)
 
-          git clone --depth 1 git@github.com:MaximeGaudin/homebrew-void.git tap
+          git clone --depth 1 git@github.com:MaximeGaudin/homebrew-tap.git tap
           mkdir -p tap/Formula
           cat > tap/Formula/void.rb <<EOF
           # typed: false
