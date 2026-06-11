@@ -14,7 +14,7 @@ The Rust toolchain is pinned by `rust-toolchain.toml` — `rustup` picks it up a
 
 ## Before you push
 
-CI enforces formatting, clippy with `-D warnings`, and tests on Linux and Windows. Run the same checks locally:
+CI enforces formatting, clippy with `-D warnings`, and tests on Linux, macOS, and Windows, plus an MSRV check, `cargo deny`, and coverage. See [docs/testing.md](docs/testing.md) for the suite layout and conventions. Run the core checks locally:
 
 ```bash
 ./scripts/check.sh        # fmt + clippy + test, same as CI

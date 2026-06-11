@@ -718,6 +718,292 @@ mod tests {
         assert_eq!(String::from_utf8(result.data).unwrap(), "col1,col2\na,b");
     }
 
+    #[test]
+    fn default_formats_for_slides() {
+        let (text, bin) = default_export_formats(GOOGLE_SLIDES_MIME);
+        assert_eq!(text, ExportFormat::PlainText);
+        assert_eq!(bin, ExportFormat::Pdf);
+    }
+
+    #[test]
+    fn default_formats_for_drawings() {
+        let (text, bin) = default_export_formats(GOOGLE_DRAWINGS_MIME);
+        assert_eq!(text, ExportFormat::Svg);
+        assert_eq!(bin, ExportFormat::Pdf);
+    }
+
+    #[test]
+    fn default_formats_for_unknown_mime() {
+        let (text, bin) = default_export_formats("application/vnd.google-apps.form");
+        assert_eq!(text, ExportFormat::PlainText);
+        assert_eq!(bin, ExportFormat::Pdf);
+    }
+
+    #[test]
+    fn export_format_mime_extension_roundtrip() {
+        for fmt in [
+            ExportFormat::PlainText,
+            ExportFormat::Markdown,
+            ExportFormat::Pdf,
+            ExportFormat::Docx,
+            ExportFormat::Csv,
+            ExportFormat::Xlsx,
+            ExportFormat::Pptx,
+            ExportFormat::Png,
+            ExportFormat::Svg,
+        ] {
+            // Extension is parseable back into the same format.
+            assert_eq!(
+                ExportFormat::from_name(fmt.extension()),
+                Some(fmt),
+                "extension roundtrip failed for {fmt:?}"
+            );
+            // MIME type is non-empty and distinct.
+            assert!(!fmt.mime_type().is_empty());
+        }
+    }
+
+    #[test]
+    fn save_to_disk_nested_output_path() {
+        let dir = std::env::temp_dir().join(format!("void-gdrive-test-{}", uuid::Uuid::new_v4()));
+        let nested = dir.join("a").join("b").join("out.csv");
+        let result = DownloadResult {
+            file_name: "ignored.csv".to_string(),
+            mime_type: "text/csv".to_string(),
+            data: b"x,y\n1,2".to_vec(),
+            export_format: Some(ExportFormat::Csv),
+        };
+        let dest = DriveApiClient::save_to_disk(&result, Some(&nested)).unwrap();
+        assert_eq!(dest, nested);
+        assert_eq!(std::fs::read(&dest).unwrap(), b"x,y\n1,2");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn get_metadata_unauthorized_errors() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/x"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(401)
+                    .set_body_string(r#"{"error":{"message":"Invalid Credentials"}}"#),
+            )
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api.get_file_metadata("x").await.unwrap_err();
+        let de = err.downcast::<DriveError>().unwrap();
+        assert!(matches!(de, DriveError::Api(_)));
+        assert!(de.to_string().contains("401"));
+    }
+
+    #[tokio::test]
+    async fn get_metadata_not_found_errors() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/missing"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(404)
+                    .set_body_string(r#"{"error":{"message":"File not found: missing."}}"#),
+            )
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api.get_file_metadata("missing").await.unwrap_err();
+        let de = err.downcast::<DriveError>().unwrap();
+        assert!(matches!(de, DriveError::Api(_)));
+        assert!(de.to_string().contains("File not found"));
+    }
+
+    #[tokio::test]
+    async fn get_metadata_server_error_errors() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/boom"))
+            .respond_with(wiremock::ResponseTemplate::new(500).set_body_string("internal error"))
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api.get_file_metadata("boom").await.unwrap_err();
+        let de = err.downcast::<DriveError>().unwrap();
+        assert!(matches!(de, DriveError::Api(_)));
+        // Non-JSON body falls back to the raw text.
+        assert!(de.to_string().contains("internal error"));
+    }
+
+    #[tokio::test]
+    async fn get_metadata_malformed_json_on_200_errors() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/bad"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string("{not json"))
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        // JSON decode failure surfaces as a reqwest error (not a DriveError).
+        assert!(api.get_file_metadata("bad").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn check_response_insufficient_scopes_maps_to_auth() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/scoped"))
+            .respond_with(wiremock::ResponseTemplate::new(403).set_body_string(
+                r#"{"error":{"message":"Request had insufficient authentication scopes."}}"#,
+            ))
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api.get_file_metadata("scoped").await.unwrap_err();
+        let de = err.downcast::<DriveError>().unwrap();
+        assert!(matches!(de, DriveError::Auth(_)));
+        assert!(de.to_string().contains("Drive scopes"));
+    }
+
+    #[tokio::test]
+    async fn check_response_api_not_enabled_maps_to_auth() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/disabled"))
+            .respond_with(wiremock::ResponseTemplate::new(403).set_body_string(
+                r#"{"error":{"message":"Google Drive API has not been used in project 123 before or it is disabled."}}"#,
+            ))
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api.get_file_metadata("disabled").await.unwrap_err();
+        let de = err.downcast::<DriveError>().unwrap();
+        assert!(matches!(de, DriveError::Auth(_)));
+        assert!(de.to_string().contains("not enabled"));
+    }
+
+    #[tokio::test]
+    async fn export_file_server_error_errors() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/exp/export"))
+            .respond_with(wiremock::ResponseTemplate::new(500).set_body_string("export boom"))
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api.export_file("exp", "text/plain").await.unwrap_err();
+        let de = err.downcast::<DriveError>().unwrap();
+        assert!(matches!(de, DriveError::Api(_)));
+    }
+
+    #[tokio::test]
+    async fn download_file_not_found_errors() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/nope"))
+            .and(wiremock::matchers::query_param("alt", "media"))
+            .respond_with(
+                wiremock::ResponseTemplate::new(404)
+                    .set_body_string(r#"{"error":{"message":"Not Found"}}"#),
+            )
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api.download_file("nope").await.unwrap_err();
+        let de = err.downcast::<DriveError>().unwrap();
+        assert!(matches!(de, DriveError::Api(_)));
+    }
+
+    #[tokio::test]
+    async fn fetch_file_propagates_export_error() {
+        let server = wiremock::MockServer::start().await;
+        let meta_body = r#"{
+            "id": "doc1",
+            "name": "Doc One",
+            "mimeType": "application/vnd.google-apps.document"
+        }"#;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/doc1"))
+            .and(wiremock::matchers::query_param(
+                "fields",
+                "id,name,mimeType,size",
+            ))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(meta_body))
+            .mount(&server)
+            .await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/doc1/export"))
+            .respond_with(wiremock::ResponseTemplate::new(500).set_body_string("export failed"))
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api.fetch_file("doc1", None).await.unwrap_err();
+        let de = err.downcast::<DriveError>().unwrap();
+        assert!(matches!(de, DriveError::Api(_)));
+    }
+
+    #[tokio::test]
+    async fn fetch_file_honors_explicit_export_format() {
+        let server = wiremock::MockServer::start().await;
+        let meta_body = r#"{
+            "id": "doc2",
+            "name": "Doc Two",
+            "mimeType": "application/vnd.google-apps.document"
+        }"#;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/doc2"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(meta_body))
+            .mount(&server)
+            .await;
+        // Only matches when mimeType=application/pdf is requested.
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/doc2/export"))
+            .and(wiremock::matchers::query_param(
+                "mimeType",
+                "application/pdf",
+            ))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_bytes(b"%PDF-1.4"))
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let result = api
+            .fetch_file("doc2", Some(ExportFormat::Pdf))
+            .await
+            .unwrap();
+        assert_eq!(result.export_format, Some(ExportFormat::Pdf));
+        assert_eq!(result.mime_type, "application/pdf");
+        assert_eq!(result.data, b"%PDF-1.4");
+    }
+
+    #[tokio::test]
+    async fn fetch_file_rejects_format_on_binary() {
+        let server = wiremock::MockServer::start().await;
+        let meta_body = r#"{
+            "id": "bin1",
+            "name": "photo.png",
+            "mimeType": "image/png",
+            "size": "2048"
+        }"#;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path("/drive/v3/files/bin1"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_string(meta_body))
+            .mount(&server)
+            .await;
+
+        let api = DriveApiClient::with_base_url("tok", &server.uri());
+        let err = api
+            .fetch_file("bin1", Some(ExportFormat::Pdf))
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("not a Google-native format"));
+    }
+
     #[tokio::test]
     async fn fetch_file_downloads_binary() {
         let mock_server = wiremock::MockServer::start().await;

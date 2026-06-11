@@ -171,15 +171,11 @@ impl Connector for TelegramConnector {
     ) -> anyhow::Result<String> {
         let (conv_ext_id, msg_ext_id) = send::parse_reply_id(message_id)?;
 
-        let raw_msg_id: i32 = msg_ext_id
-            .strip_prefix(&format!("telegram_{}_", self.config_id))
-            .unwrap_or(&msg_ext_id)
+        let raw_msg_id: i32 = send::strip_telegram_prefix(&msg_ext_id, &self.config_id)
             .parse()
             .map_err(|_| anyhow::anyhow!("invalid message ID: {msg_ext_id}"))?;
 
-        let raw_chat_id: i64 = conv_ext_id
-            .strip_prefix(&format!("telegram_{}_", self.config_id))
-            .unwrap_or(&conv_ext_id)
+        let raw_chat_id: i64 = send::strip_telegram_prefix(&conv_ext_id, &self.config_id)
             .parse()
             .map_err(|_| anyhow::anyhow!("invalid conversation ID: {conv_ext_id}"))?;
 
@@ -231,11 +227,12 @@ impl Connector for TelegramConnector {
         _external_id: &str,
         conversation_external_id: &str,
     ) -> anyhow::Result<()> {
-        let raw_chat_id: i64 = conversation_external_id
-            .strip_prefix(&format!("telegram_{}_", self.config_id))
-            .unwrap_or(conversation_external_id)
-            .parse()
-            .map_err(|_| anyhow::anyhow!("invalid conversation ID: {conversation_external_id}"))?;
+        let raw_chat_id: i64 =
+            send::strip_telegram_prefix(conversation_external_id, &self.config_id)
+                .parse()
+                .map_err(|_| {
+                    anyhow::anyhow!("invalid conversation ID: {conversation_external_id}")
+                })?;
 
         let (client, pool) = self.connect()?;
         let runner = tokio::spawn(pool.runner.run());
@@ -261,17 +258,16 @@ impl Connector for TelegramConnector {
         to: &str,
         _comment: Option<&str>,
     ) -> anyhow::Result<String> {
-        let raw_msg_id: i32 = external_id
-            .strip_prefix(&format!("telegram_{}_", self.config_id))
-            .unwrap_or(external_id)
+        let raw_msg_id: i32 = send::strip_telegram_prefix(external_id, &self.config_id)
             .parse()
             .map_err(|_| anyhow::anyhow!("invalid message ID: {external_id}"))?;
 
-        let raw_chat_id: i64 = conversation_external_id
-            .strip_prefix(&format!("telegram_{}_", self.config_id))
-            .unwrap_or(conversation_external_id)
-            .parse()
-            .map_err(|_| anyhow::anyhow!("invalid conversation ID: {conversation_external_id}"))?;
+        let raw_chat_id: i64 =
+            send::strip_telegram_prefix(conversation_external_id, &self.config_id)
+                .parse()
+                .map_err(|_| {
+                    anyhow::anyhow!("invalid conversation ID: {conversation_external_id}")
+                })?;
 
         let (client, pool) = self.connect()?;
         let runner = tokio::spawn(pool.runner.run());

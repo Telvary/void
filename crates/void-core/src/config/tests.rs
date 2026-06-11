@@ -640,3 +640,108 @@ ignore_conversations = ["random", "social"]
         vec!["random", "social"]
     );
 }
+
+// ---- Area F: legacy [[accounts]] -> [[connections]] migration ----
+
+#[test]
+fn parse_migrates_legacy_accounts_table_to_connections() {
+    // Old configs used [[accounts]]; parse() rewrites it to [[connections]].
+    let toml = r#"
+[[accounts]]
+id = "work-slack"
+type = "slack"
+app_token = "xapp-1-test"
+user_token = "xoxp-test"
+
+[[accounts]]
+id = "wa"
+type = "whatsapp"
+"#;
+    let config = VoidConfig::parse(toml).unwrap();
+    assert_eq!(
+        config.connections.len(),
+        2,
+        "accounts surfaced as connections"
+    );
+    assert_eq!(config.connections[0].id, "work-slack");
+    assert_eq!(config.connections[0].connector_type, ConnectorType::Slack);
+    assert_eq!(
+        config.connections[1].connector_type,
+        ConnectorType::WhatsApp
+    );
+}
+
+#[test]
+fn load_migrates_accounts_table_and_rewrites_file_on_disk() {
+    let dir = std::env::temp_dir().join(format!("void-cfg-accounts-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.toml");
+    std::fs::write(
+        &path,
+        r#"
+[store]
+path = "/tmp/void-test-store"
+
+[[accounts]]
+id = "wa"
+type = "whatsapp"
+"#,
+    )
+    .unwrap();
+
+    let config = VoidConfig::load(&path).unwrap();
+    assert_eq!(config.connections.len(), 1);
+    assert_eq!(
+        config.connections[0].connector_type,
+        ConnectorType::WhatsApp
+    );
+
+    // The on-disk file is migrated in place to the new table name.
+    let rewritten = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        rewritten.contains("[[connections]]"),
+        "file rewritten to [[connections]]: {rewritten}"
+    );
+    assert!(
+        !rewritten.contains("[[accounts]]"),
+        "legacy table name removed: {rewritten}"
+    );
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+// ---- Area F: unknown connector type → clear error, not a panic ----
+
+#[test]
+fn parse_unknown_connector_type_returns_error_not_panic() {
+    let toml = r#"
+[[connections]]
+id = "mystery"
+type = "myspace"
+"#;
+    let result = VoidConfig::parse(toml);
+    assert!(result.is_err(), "unknown connector type must be an error");
+    // It is a TOML parse error (unknown enum variant), surfaced cleanly.
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, crate::error::ConfigError::TomlParse(_)),
+        "expected TomlParse error, got: {err:?}"
+    );
+    let msg = err.to_string();
+    assert!(
+        msg.contains("myspace") || msg.to_lowercase().contains("variant"),
+        "error should mention the bad value or enum: {msg}"
+    );
+}
+
+#[test]
+fn raw_toml_unknown_connector_type_does_not_panic() {
+    // Direct toml::from_str must also error rather than panic.
+    let toml = r#"
+[[connections]]
+id = "x"
+type = "definitely-not-a-connector"
+"#;
+    let result: Result<VoidConfig, _> = toml::from_str(toml);
+    assert!(result.is_err());
+}

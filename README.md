@@ -5,7 +5,7 @@
 [![CI](https://github.com/MaximeGaudin/void/actions/workflows/ci.yml/badge.svg)](https://github.com/MaximeGaudin/void/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/MaximeGaudin/void)](https://github.com/MaximeGaudin/void/releases/latest)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](Cargo.toml)
+[![Rust](https://img.shields.io/badge/rust-1.89%2B-orange.svg)](Cargo.toml)
 
 **One inbox for everything.** `void` unifies WhatsApp, Telegram, Slack, Gmail, Google Calendar, Google Drive, LinkedIn, and Hacker News into a single local-first command-line tool — one inbox, one search index, one set of commands.
 
@@ -165,6 +165,7 @@ All data stays on your machine in `~/.local/share/void` — no external database
 - [Hooks](docs/hooks.md) — LLM automation: triggers, placeholders, agent contract
 - [Remote store](docs/remote-store.md) — server-side sync over SSH
 - [Adding a connector](docs/adding-a-connector.md) — wire in a new service
+- [Testing](docs/testing.md) — suite layout, conventions, coverage gaps
 
 ## Development
 

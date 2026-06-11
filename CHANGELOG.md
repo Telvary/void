@@ -10,7 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **License** — Relicensed from GPL-3.0-only to **AGPL-3.0-only** to close the network-use (SaaS) loophole. As sole author, no contributor consent was required.
-- **Docs** — Restructured the README around a quick start and everyday examples, and split deep material into modular guides (`docs/`): command reference, configuration, connector setup, hooks, remote store.
+- **Dependencies** — Bumped rusqlite (0.39), tokio-tungstenite (0.29), croner (3.0), html-to-markdown-rs (3.0), and a group of minor/patch updates.
+- **MSRV** — Raised the declared minimum supported Rust version to 1.89 (the real floor required by the dependency tree; the previously declared 1.75 did not build).
+- **CI** — Added macOS to the test matrix, `--locked` builds, and new MSRV, `cargo deny`, and coverage jobs.
+- **Tests** — Added ~100 tests (binary CLI integration, sync-engine orchestration, schema migrations, FTS5 fuzzing, hook execution, remote-store proxy, and per-connector API error paths). See [docs/testing.md](docs/testing.md).
+- **Docs** — Restructured the README around a quick start and everyday examples, and split deep material into modular guides (`docs/`): command reference, configuration, connector setup, hooks, remote store, testing.
 - **Community** — Added contribution guide, security policy, code of conduct, issue/PR templates, and Dependabot configuration.
 
 ### Removed

@@ -2019,3 +2019,357 @@ fn dedup_inbox_count_matches_rows() {
     );
     assert_eq!(total, 2);
 }
+
+// ---- Area B: bulk_archive_before ----
+
+#[test]
+fn bulk_archive_before_archives_strictly_older_messages() {
+    let db = test_db();
+    let conv = make_conversation("c1", "test-slack", "C123");
+    db.upsert_conversation(&conv).unwrap();
+
+    db.upsert_message(&make_message("m1", "c1", "test-slack", "old", 1_000))
+        .unwrap();
+    db.upsert_message(&make_message("m2", "c1", "test-slack", "boundary", 2_000))
+        .unwrap();
+    db.upsert_message(&make_message("m3", "c1", "test-slack", "new", 3_000))
+        .unwrap();
+
+    // cutoff is exclusive: timestamp < 2000 → only m1.
+    let archived = db.bulk_archive_before(2_000, None).unwrap();
+    let archived_ids: Vec<&str> = archived.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(archived_ids, ["m1"], "only strictly-older message archived");
+
+    assert!(db.get_message("m1").unwrap().unwrap().is_archived);
+    assert!(
+        !db.get_message("m2").unwrap().unwrap().is_archived,
+        "boundary timestamp (==cutoff) is NOT archived"
+    );
+    assert!(!db.get_message("m3").unwrap().unwrap().is_archived);
+}
+
+#[test]
+fn bulk_archive_before_respects_connector_filter() {
+    let db = test_db();
+    let slack_conv = make_conversation("c1", "test-slack", "C1");
+    db.upsert_conversation(&slack_conv).unwrap();
+    let mut gmail_conv = make_conversation("c2", "test-gmail", "G1");
+    gmail_conv.connector = "gmail".into();
+    db.upsert_conversation(&gmail_conv).unwrap();
+
+    db.upsert_message(&make_message("s1", "c1", "test-slack", "slack old", 1_000))
+        .unwrap();
+    db.upsert_message(&make_message_with_connector(
+        "g1",
+        "c2",
+        "test-gmail",
+        "gmail old",
+        1_000,
+        "gmail",
+    ))
+    .unwrap();
+
+    let archived = db.bulk_archive_before(5_000, Some("gmail")).unwrap();
+    let ids: Vec<&str> = archived.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(ids, ["g1"], "only gmail messages archived");
+
+    assert!(db.get_message("g1").unwrap().unwrap().is_archived);
+    assert!(
+        !db.get_message("s1").unwrap().unwrap().is_archived,
+        "slack message untouched by gmail filter"
+    );
+}
+
+#[test]
+fn bulk_archive_before_skips_already_archived() {
+    let db = test_db();
+    let conv = make_conversation("c1", "test-slack", "C123");
+    db.upsert_conversation(&conv).unwrap();
+
+    let mut m1 = make_message("m1", "c1", "test-slack", "already", 1_000);
+    m1.is_archived = true;
+    db.upsert_message(&m1).unwrap();
+    db.upsert_message(&make_message("m2", "c1", "test-slack", "fresh", 1_500))
+        .unwrap();
+
+    let archived = db.bulk_archive_before(2_000, None).unwrap();
+    let ids: Vec<&str> = archived.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        ["m2"],
+        "returned set excludes messages already archived"
+    );
+}
+
+#[test]
+fn bulk_archive_before_empty_result_when_nothing_matches() {
+    let db = test_db();
+    let conv = make_conversation("c1", "test-slack", "C123");
+    db.upsert_conversation(&conv).unwrap();
+    db.upsert_message(&make_message("m1", "c1", "test-slack", "new", 5_000))
+        .unwrap();
+
+    let archived = db.bulk_archive_before(1_000, None).unwrap();
+    assert!(archived.is_empty(), "no message older than cutoff");
+    assert!(!db.get_message("m1").unwrap().unwrap().is_archived);
+}
+
+// ---- Area B: schema snapshot (drift guard) ----
+
+/// Snapshot the schema of a fresh, fully-migrated database. If a migration
+/// changes table/index/trigger names, this test fails so the drift is caught
+/// deliberately. The `sql` column is asserted non-null for tables/triggers.
+#[test]
+fn schema_snapshot_matches_expected() {
+    let db = test_db();
+    let conn = db.conn().unwrap();
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT name, type FROM sqlite_master \
+             WHERE name NOT LIKE 'sqlite_%' \
+             ORDER BY name",
+        )
+        .unwrap();
+    let rows: Vec<(String, String)> = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+
+    let names: Vec<&str> = rows.iter().map(|(n, _)| n.as_str()).collect();
+
+    // Expected object names at SCHEMA_VERSION = 11. Includes FTS5 shadow tables
+    // (messages_fts_*) created automatically by the virtual table.
+    let expected = [
+        "conversations",
+        "events",
+        "hook_logs",
+        "idx_hook_logs_started",
+        "idx_messages_context_id",
+        "messages",
+        "messages_ad",
+        "messages_ai",
+        "messages_au",
+        "messages_fts",
+        "messages_fts_config",
+        "messages_fts_data",
+        "messages_fts_docsize",
+        "messages_fts_idx",
+        "schema_version",
+        "sync_state",
+    ];
+
+    assert_eq!(
+        names, expected,
+        "schema object names drifted from the expected snapshot at version {SCHEMA_VERSION}"
+    );
+}
+
+#[test]
+fn schema_snapshot_core_table_columns_present() {
+    let db = test_db();
+    let conn = db.conn().unwrap();
+
+    // Guard against silent column drift on the messages table specifically:
+    // pull the CREATE TABLE SQL and assert the renamed/added columns exist.
+    let sql: String = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='messages'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    for col in [
+        "connection_id",
+        "connector",
+        "synced_at",
+        "is_archived",
+        "context_id",
+        "sender_avatar_url",
+    ] {
+        assert!(
+            sql.contains(col),
+            "messages table missing expected column `{col}`: {sql}"
+        );
+    }
+    // Columns dropped in migration v7 must be gone.
+    assert!(!sql.contains("is_read"), "is_read should be dropped (v7)");
+    assert!(
+        !sql.contains("is_from_me"),
+        "is_from_me should be dropped (v7)"
+    );
+    assert!(
+        !sql.contains("account_id"),
+        "account_id renamed to connection_id (v10)"
+    );
+}
+
+// ---- Area B: migrations preserve data when run on a seeded DB ----
+
+/// Build a v1-era database by hand (pre-rename, with `account_id` and the
+/// columns that v7 later drops), insert a row, then run the full migration
+/// chain and assert the row survives and is reachable via the modern schema.
+#[test]
+fn migrations_preserve_existing_data() {
+    use rusqlite::Connection;
+
+    let conn = Connection::open_in_memory().unwrap();
+    conn.pragma_update(None, "foreign_keys", "ON").unwrap();
+
+    // Minimal v1 schema (subset sufficient to hold a conversation + message).
+    conn.execute_batch(
+        "
+        CREATE TABLE schema_version (version INTEGER NOT NULL);
+        CREATE TABLE conversations (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            name TEXT,
+            kind TEXT NOT NULL,
+            last_message_at INTEGER,
+            unread_count INTEGER NOT NULL DEFAULT 0,
+            metadata TEXT,
+            UNIQUE(account_id, external_id)
+        );
+        CREATE TABLE messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL REFERENCES conversations(id),
+            account_id TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            sender TEXT NOT NULL,
+            sender_name TEXT,
+            body TEXT,
+            timestamp INTEGER NOT NULL,
+            is_from_me INTEGER NOT NULL DEFAULT 0,
+            reply_to_id TEXT,
+            media_type TEXT,
+            metadata TEXT,
+            UNIQUE(account_id, external_id)
+        );
+        CREATE VIRTUAL TABLE messages_fts USING fts5(
+            body, sender_name, content=messages, content_rowid=rowid
+        );
+        CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN
+            INSERT INTO messages_fts(rowid, body, sender_name)
+            VALUES (new.rowid, new.body, new.sender_name);
+        END;
+        CREATE TABLE events (
+            id TEXT PRIMARY KEY, account_id TEXT NOT NULL, external_id TEXT NOT NULL,
+            title TEXT NOT NULL, description TEXT, location TEXT,
+            start_at INTEGER NOT NULL, end_at INTEGER NOT NULL,
+            all_day INTEGER NOT NULL DEFAULT 0, attendees TEXT, status TEXT,
+            calendar_name TEXT, meet_link TEXT, metadata TEXT,
+            UNIQUE(account_id, external_id)
+        );
+        CREATE TABLE sync_state (
+            account_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+            PRIMARY KEY(account_id, key)
+        );
+        INSERT INTO schema_version (version) VALUES (1);
+        ",
+    )
+    .unwrap();
+
+    conn.execute(
+        "INSERT INTO conversations (id, account_id, external_id, kind, unread_count)
+         VALUES ('cv1', 'legacy-acct', 'EXT1', 'dm', 0)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO messages (id, conversation_id, account_id, external_id, sender, body, timestamp)
+         VALUES ('mg1', 'cv1', 'legacy-acct', 'EXTM1', 'alice', 'preserved body', 12345)",
+        [],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO sync_state (account_id, key, value) VALUES ('legacy-acct', 'k', 'v')",
+        [],
+    )
+    .unwrap();
+
+    // Run the real migration chain over the seeded legacy DB.
+    super::schema::run_migrations(&conn).unwrap();
+
+    let version: i32 = conn
+        .query_row(
+            "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(version, SCHEMA_VERSION);
+
+    // account_id renamed to connection_id (v10) and data preserved.
+    let (conn_id, body): (String, String) = conn
+        .query_row(
+            "SELECT connection_id, body FROM messages WHERE id = 'mg1'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(conn_id, "legacy-acct");
+    assert_eq!(body, "preserved body");
+
+    let conv_conn: String = conn
+        .query_row(
+            "SELECT connection_id FROM conversations WHERE id = 'cv1'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(conv_conn, "legacy-acct");
+
+    let sync_conn: String = conn
+        .query_row(
+            "SELECT connection_id FROM sync_state WHERE key = 'k'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(sync_conn, "legacy-acct");
+}
+
+// ---- Area C: FTS5 search robustness (property test) ----
+
+proptest::proptest! {
+    /// For ARBITRARY user input — including FTS5 operators, quotes, unicode and
+    /// control bytes — search_messages must never surface an FTS5 syntax error
+    /// or panic. It must return Ok (possibly empty). Guards query-injection crashes.
+    #[test]
+    fn search_never_errors_on_arbitrary_input(
+        query in proptest::string::string_regex(
+            r#"[a-zA-Z0-9 @:"*(){}\^\-+~/\\.café会議📄NEARANDORNOT]{0,40}"#
+        ).unwrap()
+    ) {
+        let db = seed_search_db();
+        let result = db.search_messages(&query, None, None, 50, true);
+        proptest::prop_assert!(
+            result.is_ok(),
+            "search returned an error for input {:?}: {:?}",
+            query,
+            result.err()
+        );
+    }
+
+    /// Same guarantee with both connection and connector filters engaged, since
+    /// the filter clauses extend the SQL and could interact with the MATCH escaping.
+    #[test]
+    fn search_never_errors_with_filters(
+        query in proptest::string::string_regex(
+            r#"[a-zA-Z0-9 @:"*()\-+]{0,30}"#
+        ).unwrap()
+    ) {
+        let db = seed_search_db();
+        let result = db.search_messages(&query, Some("test-slack"), Some("slack"), 50, false);
+        proptest::prop_assert!(
+            result.is_ok(),
+            "filtered search errored for input {:?}: {:?}",
+            query,
+            result.err()
+        );
+    }
+}

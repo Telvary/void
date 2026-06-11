@@ -459,3 +459,330 @@ fn parse_reply_id_valid() {
 fn parse_reply_id_invalid() {
     assert!(parse_reply_id("no_colon_here").is_err());
 }
+
+#[test]
+fn parse_reply_id_empty_is_error() {
+    assert!(parse_reply_id("").is_err());
+}
+
+#[test]
+fn parse_reply_id_splits_on_first_colon_only() {
+    let (chat, msg) = parse_reply_id("33612@s.whatsapp.net:ABC:DEF").unwrap();
+    assert_eq!(chat, "33612@s.whatsapp.net");
+    assert_eq!(msg, "ABC:DEF");
+}
+
+#[test]
+fn parse_reply_id_trailing_colon_yields_empty_msg() {
+    let (chat, msg) = parse_reply_id("chat@g.us:").unwrap();
+    assert_eq!(chat, "chat@g.us");
+    assert_eq!(msg, "");
+}
+
+#[test]
+fn parse_jid_preserves_group_server() {
+    let jid = parse_jid("120363@g.us").unwrap();
+    assert_eq!(jid.to_string(), "120363@g.us");
+}
+
+#[test]
+fn parse_jid_custom_server_passthrough() {
+    let jid = parse_jid("12345@lid").unwrap();
+    assert_eq!(jid.to_string(), "12345@lid");
+}
+
+#[test]
+fn parse_jid_bare_number_defaults_to_whatsapp_net() {
+    let jid = parse_jid("123").unwrap();
+    assert_eq!(jid.to_string(), "123@s.whatsapp.net");
+}
+
+#[test]
+fn parse_jid_with_at_does_not_append_default_server() {
+    // Anything containing '@' is split rather than treated as a bare number.
+    let jid = parse_jid("user@example.server").unwrap();
+    assert_eq!(jid.to_string(), "user@example.server");
+}
+
+#[test]
+fn normalize_phone_already_clean() {
+    assert_eq!(normalize_phone("33612345678"), "33612345678");
+}
+
+#[test]
+fn normalize_phone_strips_non_digits() {
+    assert_eq!(normalize_phone("+1 (650) 555-0100"), "16505550100");
+}
+
+#[test]
+fn normalize_phone_drops_letters() {
+    assert_eq!(normalize_phone("33-ABC-612"), "33612");
+}
+
+#[test]
+fn normalize_phone_empty() {
+    assert_eq!(normalize_phone(""), "");
+}
+
+#[test]
+fn determine_media_type_mime_priority_over_extension() {
+    // MIME wins even when the extension suggests a different type.
+    assert_eq!(
+        media::determine_media_type(Some("image/png"), "file.pdf").0,
+        WaMediaType::Image
+    );
+    assert_eq!(
+        media::determine_media_type(Some("video/mp4"), "file.jpg").0,
+        WaMediaType::Video
+    );
+    assert_eq!(
+        media::determine_media_type(Some("audio/ogg"), "file.txt").0,
+        WaMediaType::Audio
+    );
+}
+
+#[test]
+fn determine_media_type_mime_case_insensitive() {
+    assert_eq!(
+        media::determine_media_type(Some("IMAGE/JPEG"), "x").0,
+        WaMediaType::Image
+    );
+}
+
+#[test]
+fn determine_media_type_unknown_mime_falls_back_to_extension() {
+    // An unrecognized MIME type falls through to the extension check.
+    assert_eq!(
+        media::determine_media_type(Some("application/x-weird"), "clip.mov").0,
+        WaMediaType::Video
+    );
+}
+
+#[test]
+fn determine_media_type_default_mime_strings() {
+    assert_eq!(media::determine_media_type(None, "a.png").1, "image/jpeg");
+    assert_eq!(media::determine_media_type(None, "a.mp4").1, "video/mp4");
+    assert_eq!(
+        media::determine_media_type(None, "a.ogg").1,
+        "audio/ogg; codecs=opus"
+    );
+    assert_eq!(
+        media::determine_media_type(None, "a.bin").1,
+        "application/octet-stream"
+    );
+}
+
+#[test]
+fn determine_media_type_uppercase_extension() {
+    // Extension is lowercased before matching.
+    assert_eq!(
+        media::determine_media_type(None, "PHOTO.JPG").0,
+        WaMediaType::Image
+    );
+}
+
+#[test]
+fn extract_quoted_id_present() {
+    let msg = WaMessage {
+        extended_text_message: Some(Box::new(ExtendedTextMessage {
+            text: Some("reply".into()),
+            context_info: Some(Box::new(ContextInfo {
+                stanza_id: Some("ORIGINAL_ID".into()),
+                ..Default::default()
+            })),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    assert_eq!(extract::extract_quoted_id(&msg), Some("ORIGINAL_ID".into()));
+}
+
+#[test]
+fn extract_quoted_id_absent_for_plain_text() {
+    let msg = WaMessage {
+        conversation: Some("hi".into()),
+        ..Default::default()
+    };
+    assert_eq!(extract::extract_quoted_id(&msg), None);
+}
+
+#[test]
+fn extract_quoted_id_none_when_no_context_info() {
+    let msg = WaMessage {
+        extended_text_message: Some(Box::new(ExtendedTextMessage {
+            text: Some("no quote".into()),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    assert_eq!(extract::extract_quoted_id(&msg), None);
+}
+
+#[test]
+fn extract_text_location_with_name() {
+    use wa_rs_proto::whatsapp::message::LocationMessage;
+    let msg = WaMessage {
+        location_message: Some(Box::new(LocationMessage {
+            name: Some("Eiffel Tower".into()),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    assert_eq!(extract::extract_text(&msg), Some("Eiffel Tower".into()));
+    assert_eq!(extract::extract_media_type(&msg), Some("location".into()));
+}
+
+#[test]
+fn extract_text_location_without_name_fallback() {
+    use wa_rs_proto::whatsapp::message::LocationMessage;
+    let msg = WaMessage {
+        location_message: Some(Box::new(LocationMessage::default())),
+        ..Default::default()
+    };
+    assert_eq!(extract::extract_text(&msg), Some("📍 Location".into()));
+}
+
+#[test]
+fn extract_text_contact() {
+    use wa_rs_proto::whatsapp::message::ContactMessage;
+    let msg = WaMessage {
+        contact_message: Some(Box::new(ContactMessage {
+            display_name: Some("Jane Doe".into()),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    assert_eq!(extract::extract_text(&msg), Some("👤 Jane Doe".into()));
+    assert_eq!(extract::extract_media_type(&msg), Some("contact".into()));
+}
+
+#[test]
+fn extract_text_contact_without_name_fallback() {
+    use wa_rs_proto::whatsapp::message::ContactMessage;
+    let msg = WaMessage {
+        contact_message: Some(Box::new(ContactMessage::default())),
+        ..Default::default()
+    };
+    assert_eq!(extract::extract_text(&msg), Some("👤 Contact".into()));
+}
+
+#[test]
+fn extract_media_type_sticker() {
+    use wa_rs_proto::whatsapp::message::StickerMessage;
+    let msg = WaMessage {
+        sticker_message: Some(Box::new(StickerMessage::default())),
+        ..Default::default()
+    };
+    assert_eq!(extract::extract_media_type(&msg), Some("sticker".into()));
+}
+
+#[test]
+fn extract_media_metadata_video() {
+    use wa_rs_proto::whatsapp::message::VideoMessage;
+    let msg = WaMessage {
+        video_message: Some(Box::new(VideoMessage {
+            mimetype: Some("video/mp4".into()),
+            file_length: Some(2_000_000),
+            seconds: Some(30),
+            width: Some(1280),
+            height: Some(720),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    let meta = extract::extract_media_metadata(&msg).unwrap();
+    assert_eq!(meta["mimetype"], "video/mp4");
+    assert_eq!(meta["file_size"], 2_000_000);
+    assert_eq!(meta["duration_secs"], 30);
+    assert_eq!(meta["width"], 1280);
+    assert_eq!(meta["height"], 720);
+    assert_eq!(meta["media_type"], "video");
+}
+
+#[test]
+fn extract_media_metadata_audio_voice_note() {
+    use wa_rs_proto::whatsapp::message::AudioMessage;
+    let msg = WaMessage {
+        audio_message: Some(Box::new(AudioMessage {
+            mimetype: Some("audio/ogg; codecs=opus".into()),
+            file_length: Some(12345),
+            seconds: Some(7),
+            ptt: Some(true),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    let meta = extract::extract_media_metadata(&msg).unwrap();
+    assert_eq!(meta["mimetype"], "audio/ogg; codecs=opus");
+    assert_eq!(meta["file_size"], 12345);
+    assert_eq!(meta["duration_secs"], 7);
+    assert_eq!(meta["voice_note"], true);
+    assert_eq!(meta["media_type"], "audio");
+}
+
+#[test]
+fn extract_media_metadata_encodes_download_fields_base64() {
+    use wa_rs_proto::whatsapp::message::ImageMessage;
+    let msg = WaMessage {
+        image_message: Some(Box::new(ImageMessage {
+            mimetype: Some("image/jpeg".into()),
+            media_key: Some(vec![1, 2, 3]),
+            file_sha256: Some(vec![4, 5, 6]),
+            file_enc_sha256: Some(vec![7, 8, 9]),
+            ..Default::default()
+        })),
+        ..Default::default()
+    };
+    let meta = extract::extract_media_metadata(&msg).unwrap();
+    // base64(STANDARD) of [1,2,3] = "AQID", [4,5,6] = "BAUG", [7,8,9] = "BwgJ"
+    assert_eq!(meta["media_key"], "AQID");
+    assert_eq!(meta["file_sha256"], "BAUG");
+    assert_eq!(meta["file_enc_sha256"], "BwgJ");
+}
+
+#[test]
+fn build_wa_message_file_content_is_error() {
+    let content = MessageContent::File {
+        path: std::env::temp_dir().join("z.png"),
+        caption: Some("cap".into()),
+        mime_type: Some("image/png".into()),
+    };
+    assert!(build_wa_message(&content, None).is_err());
+}
+
+#[test]
+fn build_wa_message_text_with_context_uses_extended() {
+    let content = MessageContent::Text("hello".into());
+    let ctx = ContextInfo {
+        stanza_id: Some("q1".into()),
+        ..Default::default()
+    };
+    let msg = build_wa_message(&content, Some(ctx)).unwrap();
+    assert!(msg.conversation.is_none());
+    let ext = msg.extended_text_message.as_ref().unwrap();
+    assert_eq!(ext.text, Some("hello".into()));
+    assert_eq!(
+        ext.context_info.as_ref().unwrap().stanza_id,
+        Some("q1".into())
+    );
+}
+
+#[test]
+fn is_system_message_keep_in_chat() {
+    use wa_rs_proto::whatsapp::message::KeepInChatMessage;
+    let msg = WaMessage {
+        keep_in_chat_message: Some(KeepInChatMessage::default()),
+        ..Default::default()
+    };
+    assert!(sync::is_system_message(&msg));
+}
+
+#[test]
+fn is_system_message_pin_in_chat() {
+    use wa_rs_proto::whatsapp::message::PinInChatMessage;
+    let msg = WaMessage {
+        pin_in_chat_message: Some(PinInChatMessage::default()),
+        ..Default::default()
+    };
+    assert!(sync::is_system_message(&msg));
+}

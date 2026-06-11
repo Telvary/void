@@ -298,3 +298,133 @@ async fn download_attachment_returns_bytes() {
     let bytes = client.download_attachment("msg-1", "att-1").await.unwrap();
     assert_eq!(bytes, b"pdf-bytes");
 }
+
+#[tokio::test]
+async fn get_json_rate_limited_returns_connection_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/accounts/acc-1"))
+        .respond_with(ResponseTemplate::new(429).set_body_string("rate limited"))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let err = client.get_account("acc-1").await.unwrap_err();
+    match err {
+        LinkedInError::Connection(msg) => assert!(msg.contains("429"), "msg: {msg}"),
+        other => panic!("expected Connection error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn get_json_server_error_returns_connection_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/accounts/acc-1"))
+        .respond_with(ResponseTemplate::new(503).set_body_string("upstream down"))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let err = client.get_account("acc-1").await.unwrap_err();
+    match err {
+        LinkedInError::Connection(msg) => assert!(msg.contains("503"), "msg: {msg}"),
+        other => panic!("expected Connection error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn get_json_malformed_body_returns_decode_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/accounts/acc-1"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_string("{not valid json"),
+        )
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let err = client.get_account("acc-1").await.unwrap_err();
+    assert!(
+        matches!(err, LinkedInError::Decode(_)),
+        "expected Decode error, got {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn list_post_comments_unauthorized_returns_auth_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/v1/posts/urn%3Ali%3Aactivity%3A7332661864792854528/comments",
+        ))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let err = client
+        .list_post_comments(
+            "acc-1",
+            "urn:li:activity:7332661864792854528",
+            None,
+            None,
+            50,
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, LinkedInError::Auth(_)),
+        "expected Auth error, got {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn send_post_comment_failure_returns_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(
+            "/api/v1/posts/urn%3Ali%3Aactivity%3A7332661864792854528/comments",
+        ))
+        .respond_with(ResponseTemplate::new(500).set_body_string("boom"))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let err = client
+        .send_post_comment(
+            "acc-1",
+            "urn:li:activity:7332661864792854528",
+            "Thanks!",
+            None,
+        )
+        .await
+        .unwrap_err();
+    match err {
+        LinkedInError::Connection(msg) => assert!(msg.contains("500"), "msg: {msg}"),
+        other => panic!("expected Connection error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn download_attachment_server_error_returns_media_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/messages/msg-1/attachments/att-1"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("server boom"))
+        .mount(&server)
+        .await;
+
+    let client = test_client(&server);
+    let err = client
+        .download_attachment("msg-1", "att-1")
+        .await
+        .unwrap_err();
+    match err {
+        LinkedInError::Media(msg) => assert!(msg.contains("500"), "msg: {msg}"),
+        other => panic!("expected Media error, got {other:?}"),
+    }
+}

@@ -301,6 +301,111 @@ mod tests {
     }
 
     #[test]
+    fn deserialize_realistic_story_json() {
+        let json = r#"{
+            "id": 8863,
+            "title": "My YC app: Dropbox - Throw away your USB drive",
+            "url": "http://www.getdropbox.com/u/2/screencast.html",
+            "score": 111,
+            "by": "dhouston",
+            "time": 1175714200,
+            "type": "story",
+            "descendants": 71
+        }"#;
+        let item: HnItem = serde_json::from_str(json).unwrap();
+        assert_eq!(item.id, 8863);
+        assert_eq!(item.item_type.as_deref(), Some("story"));
+        assert_eq!(item.score, Some(111));
+        // Above min_score and matching keyword -> included.
+        let keywords = vec!["dropbox".to_string()];
+        assert!(matches_filters(&item, &keywords, 100));
+        // Below threshold -> skipped.
+        assert!(!matches_filters(&item, &keywords, 200));
+        // Non-matching keyword -> skipped.
+        assert!(!matches_filters(&item, &["nonsense".to_string()], 0));
+        // Message build round-trips the fields.
+        let msg = build_message(&item, "hn", "hn-feed");
+        assert!(msg.body.as_ref().unwrap().contains("111 points"));
+        assert!(msg.body.as_ref().unwrap().contains("71 comments"));
+    }
+
+    #[test]
+    fn deserialize_job_type_is_skipped() {
+        let json = r#"{
+            "id": 192327,
+            "title": "Justin.tv is looking for a Lead Flash Engineer!",
+            "score": 6,
+            "by": "justin",
+            "time": 1210981217,
+            "type": "job"
+        }"#;
+        let item: HnItem = serde_json::from_str(json).unwrap();
+        assert_eq!(item.item_type.as_deref(), Some("job"));
+        // Jobs are never matched regardless of keywords/score.
+        assert!(!matches_filters(&item, &[], 0));
+    }
+
+    #[test]
+    fn deserialize_missing_score_defaults_to_zero() {
+        let json = r#"{
+            "id": 100,
+            "title": "Scoreless Story",
+            "type": "story",
+            "by": "nobody",
+            "time": 1700000000
+        }"#;
+        let item: HnItem = serde_json::from_str(json).unwrap();
+        assert_eq!(item.score, None);
+        // Missing score treated as 0 -> passes only with min_score 0.
+        assert!(matches_filters(&item, &[], 0));
+        assert!(!matches_filters(&item, &[], 1));
+        // build_message tolerates missing score/descendants.
+        let msg = build_message(&item, "hn", "hn-feed");
+        assert!(msg.body.as_ref().unwrap().contains("0 points"));
+    }
+
+    #[test]
+    fn deserialize_null_fields_tolerated() {
+        let json = r#"{
+            "id": 200,
+            "title": null,
+            "url": null,
+            "score": null,
+            "by": null,
+            "time": null,
+            "type": "story",
+            "descendants": null
+        }"#;
+        let item: HnItem = serde_json::from_str(json).unwrap();
+        assert!(item.title.is_none());
+        assert!(item.url.is_none());
+        assert!(item.score.is_none());
+        // No title, empty keywords -> story still matches at score 0.
+        assert!(matches_filters(&item, &[], 0));
+        // With a keyword and empty title -> no match.
+        assert!(!matches_filters(&item, &["rust".to_string()], 0));
+        // build_message falls back to placeholders and HN url (no external url).
+        let msg = build_message(&item, "hn", "hn-feed");
+        let body = msg.body.as_ref().unwrap();
+        assert!(body.contains("(untitled)"));
+        assert!(body.contains("https://news.ycombinator.com/item?id=200"));
+        assert_eq!(msg.sender, "unknown");
+    }
+
+    #[test]
+    fn deserialize_malformed_json_returns_err_no_panic() {
+        // Missing required `id` field.
+        let bad = r#"{ "title": "No id here", "type": "story" }"#;
+        assert!(serde_json::from_str::<HnItem>(bad).is_err());
+        // Wrong type for `id`.
+        let bad2 = r#"{ "id": "not-a-number", "type": "story" }"#;
+        assert!(serde_json::from_str::<HnItem>(bad2).is_err());
+        // Truncated JSON.
+        let bad3 = r#"{ "id": 1, "title": "#;
+        assert!(serde_json::from_str::<HnItem>(bad3).is_err());
+    }
+
+    #[test]
     fn build_message_includes_all_fields() {
         let item = make_item(42, "Show HN: Cool Tool", 350);
         let msg = build_message(&item, "hn", "hn-feed");
