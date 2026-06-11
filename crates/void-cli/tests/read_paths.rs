@@ -109,7 +109,10 @@ impl SeededStore {
 
         // Config in local mode with store.path pinned to our tempdir so any
         // code path that reloads the config (e.g. doctor) stays isolated.
-        let config_contents = format!("[store]\nmode = \"local\"\npath = \"{store}\"\n");
+        // Escape backslashes so a Windows path is a valid TOML basic string
+        // (the unescaped `store` is still what we pass to `--store`).
+        let store_toml = store.replace('\\', "\\\\");
+        let config_contents = format!("[store]\nmode = \"local\"\npath = \"{store_toml}\"\n");
         std::fs::write(&config, config_contents).expect("write config");
 
         seed_db(&store_dir.join("void.db"));

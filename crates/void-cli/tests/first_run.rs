@@ -70,7 +70,8 @@ fn doctor_non_interactive_exits_with_defined_code() {
     let dir: TempDir = tempfile::tempdir().expect("tempdir");
     let store = dir.path().join("store");
     std::fs::create_dir_all(&store).expect("create store dir");
-    let store_str = store.to_string_lossy();
+    // Escape backslashes so a Windows path (C:\...) is a valid TOML basic string.
+    let store_str = store.to_string_lossy().replace('\\', "\\\\");
     let config = dir.path().join("config.toml");
     std::fs::write(
         &config,
