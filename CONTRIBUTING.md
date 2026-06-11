@@ -82,4 +82,4 @@ Please do not open public issues for security vulnerabilities — see [SECURITY.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [GPL-3.0](LICENSE).
+By contributing, you agree that your contributions will be licensed under the [AGPL-3.0](LICENSE).

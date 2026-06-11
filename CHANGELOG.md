@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **License** — Relicensed from GPL-3.0-only to **AGPL-3.0-only** to close the network-use (SaaS) loophole. As sole author, no contributor consent was required.
 - **Docs** — Restructured the README around a quick start and everyday examples, and split deep material into modular guides (`docs/`): command reference, configuration, connector setup, hooks, remote store.
 - **Community** — Added contribution guide, security policy, code of conduct, issue/PR templates, and Dependabot configuration.
 

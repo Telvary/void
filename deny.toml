@@ -34,7 +34,7 @@ allow = [
     "Unicode-3.0",
     "CDLA-Permissive-2.0",
     "LGPL-2.1-or-later",
-    "GPL-3.0-only",
+    "AGPL-3.0-only",
 ]
 
 [licenses.private]

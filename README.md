@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/MaximeGaudin/void/actions/workflows/ci.yml/badge.svg)](https://github.com/MaximeGaudin/void/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/MaximeGaudin/void)](https://github.com/MaximeGaudin/void/releases/latest)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](Cargo.toml)
 
 **One inbox for everything.** `void` unifies WhatsApp, Telegram, Slack, Gmail, Google Calendar, Google Drive, LinkedIn, and Hacker News into a single local-first command-line tool — one inbox, one search index, one set of commands.
@@ -179,4 +179,4 @@ Contributions welcome — read [CONTRIBUTING.md](CONTRIBUTING.md), and [Adding a
 
 Copyright (C) 2026 Maxime Gaudin
 
-Free software under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html). See [LICENSE](LICENSE) for the full text.
+Free software under the [GNU Affero General Public License v3.0](https://www.gnu.org/licenses/agpl-3.0.html). See [LICENSE](LICENSE) for the full text.
