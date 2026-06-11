@@ -46,6 +46,19 @@ if [ ! -f "$SRC" ]; then
   exit 1
 fi
 
+# If void is also installed via Homebrew, its symlink in the brew prefix can
+# shadow this local build (or conflict with it, if you install into that
+# prefix), depending on PATH order. Stop its daemon and unlink it so the freshly
+# built binary is the one that runs. The formula stays installed — restore the
+# Homebrew version any time with `brew link void`.
+if command -v brew >/dev/null 2>&1 && brew list --formula 2>/dev/null | grep -qx "$BIN_NAME"; then
+  BREW_BIN="$(brew --prefix)/bin/$BIN_NAME"
+  [ -x "$BREW_BIN" ] && "$BREW_BIN" sync --stop >/dev/null 2>&1 || true
+  echo "==> Homebrew $BIN_NAME detected — unlinking so the local build takes precedence"
+  brew unlink "$BIN_NAME" >/dev/null 2>&1 || true
+  echo "    (restore it later with: brew link $BIN_NAME)"
+fi
+
 mkdir -p "$INSTALL_DIR"
 
 # Use a temp file + atomic rename so zombie processes holding the old inode
