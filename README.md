@@ -23,7 +23,10 @@ It is built for terminals, shell scripts, and AI agents:
 ## Install
 
 ```bash
-# macOS (Apple Silicon)
+# macOS (Homebrew) — recommended
+brew install MaximeGaudin/void/void
+
+# macOS (Apple Silicon, direct)
 curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-arm64.tar.gz | sudo tar xz -C /usr/local/bin
 
 # Linux (x86_64)

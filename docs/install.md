@@ -2,7 +2,15 @@
 
 `void` ships as a single static binary. Install the latest release from [GitHub Releases](https://github.com/MaximeGaudin/void/releases/latest) — commands below install to directories that are already on `PATH` by default on each platform.
 
-## macOS
+## Homebrew (macOS, recommended)
+
+```bash
+brew install MaximeGaudin/void/void
+```
+
+Homebrew handles the download, `PATH`, upgrades (`brew upgrade void`), and removes the macOS quarantine attribute for you — no Gatekeeper prompt.
+
+## macOS (direct download)
 
 ```bash
 # Apple Silicon
@@ -11,6 +19,14 @@ curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-da
 # Intel
 curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-amd64.tar.gz | sudo tar xz -C /usr/local/bin
 ```
+
+> **Gatekeeper note.** The `curl` command above does **not** quarantine the binary, so it runs immediately. If you instead download the `.tar.gz` from the Releases page in a browser, macOS may block it ("cannot be opened because the developer cannot be verified"). Clear the quarantine attribute once:
+>
+> ```bash
+> sudo xattr -d com.apple.quarantine /usr/local/bin/void
+> ```
+>
+> (The right-click → Open trick is for `.app` bundles and doesn't apply to a CLI binary.)
 
 ## Linux
 
