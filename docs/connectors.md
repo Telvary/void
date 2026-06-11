@@ -1,0 +1,116 @@
+# Connector setup
+
+Every connector is added through the same flow: run `void setup`, pick the service, follow the prompts. This page covers what each service needs.
+
+| Connector | Credentials needed | Sync mechanism |
+|-----------|--------------------|----------------|
+| [WhatsApp](#whatsapp) | None — QR code | wa-rs WebSocket (push) |
+| [Telegram](#telegram) | None — QR code | grammers MTProto (push) |
+| [Slack](#slack) | Slack app tokens | Socket Mode WebSocket (push) |
+| [Gmail](#gmail--google-calendar) | Built-in OAuth (or your own) | `history.list` polling |
+| [Google Calendar](#gmail--google-calendar) | Built-in OAuth (or your own) | `syncToken` polling |
+| [Google Drive](#google-drive) | Built-in OAuth (or your own) | On-demand (no sync) |
+| [LinkedIn](#linkedin-unipile) | Unipile API key | Unipile API polling |
+| [Hacker News](#hacker-news) | None — public API | HN API polling |
+
+## WhatsApp
+
+No external credentials needed.
+
+1. Run `void setup` and select WhatsApp
+2. Scan the QR code with your phone: **WhatsApp → Linked Devices → Link a Device**
+
+## Telegram
+
+No external credentials needed.
+
+1. Run `void setup` and select Telegram
+2. Scan the QR code with your phone: **Telegram → Settings → Devices → Link Desktop Device**
+
+Optionally, set your own `api_id` / `api_hash` in the connection config — see [Configuration](configuration.md#connections).
+
+## Slack
+
+Create a Slack app with a **user token** (`xoxp-…`) and an **app-level token** (`xapp-…`) with Socket Mode enabled. Add both tokens through `void setup`.
+
+```toml
+[[connections]]
+id = "work-slack"
+type = "slack"
+app_token = "xapp-1-..."
+user_token = "xoxp-..."
+```
+
+## Gmail & Google Calendar
+
+Built-in OAuth2 credentials are included — **no Google Cloud setup required**:
+
+1. Run `void setup` and select Gmail or Calendar
+2. Accept the default built-in credentials (or provide your own Google Cloud credentials file via `credentials_file`)
+3. Complete the OAuth flow in your browser
+
+Gmail and Calendar share the same OAuth credentials, so adding the second one after the first is instant. By default Calendar syncs your primary calendar; list more with `calendar_ids`.
+
+## Google Drive
+
+Drive is on-demand (download/info/export) rather than synced. It reuses the same Google OAuth flow:
+
+```bash
+void drive auth
+void drive download "https://docs.google.com/document/d/..." -o report.md
+```
+
+## LinkedIn (Unipile)
+
+LinkedIn messages are synced through the [Unipile](https://www.unipile.com/) API. You need a Unipile account with a connected LinkedIn profile.
+
+1. Sign up at [dashboard.unipile.com](https://dashboard.unipile.com)
+2. Connect your LinkedIn account in the Unipile dashboard
+3. Copy your **API key**, **DSN** (API base URL), and **account ID**
+4. Run `void setup`, select LinkedIn, and paste the credentials
+
+```toml
+[[connections]]
+id = "linkedin"
+type = "linkedin"
+api_key = "your-unipile-api-key"
+dsn = "https://api1.unipile.com:13111"
+account_id = "your-unipile-account-id"
+```
+
+Send messages with `void send --via linkedin --to <chat-id-or-linkedin-member-id> --message "..."`. For new conversations with a connection, use the recipient's LinkedIn provider ID (often starts with `ACo`). For existing chats, use the Unipile chat ID or the void conversation external ID.
+
+In addition to DMs, sync pulls **comments on your own posts** (Unipile Posts & Comments API). Each post appears as a thread conversation (`kind: thread`); comments are messages with `metadata.source = linkedin_post_comment`. Reply to a comment with `void reply`, same as DMs.
+
+## Hacker News
+
+No credentials needed — the HN API is public. Run `void setup`, select Hacker News, enter keywords to watch and a minimum score threshold. Stories matching your keywords above the score threshold land in your inbox on each sync cycle.
+
+```toml
+[[connections]]
+id = "hackernews"
+type = "hackernews"
+keywords = ["rust", "ai", "startup"]
+min_score = 100
+```
+
+Tune it later without editing the config:
+
+```bash
+void hn keywords add "sqlite,local-first"
+void hn min-score 150
+void hn config
+```
+
+## Multiple accounts
+
+Add as many connections as you want, including several of the same type. Target a specific one anywhere with `--connection <id>`:
+
+```bash
+void inbox --connection work-slack
+void gmail search "newer_than:7d" --connection you@gmail.com
+```
+
+## Adding a new connector
+
+Want to wire in a new service? See [Adding a connector](adding-a-connector.md).

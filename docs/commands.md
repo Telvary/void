@@ -56,21 +56,23 @@ Most read commands accept:
 
 | Command | Description |
 |---------|-------------|
-| `void send --via <connector> --to <recipient> --message <text>` | Send a new message. `--connection <id>` to pick an account, `--subject` (email), `--file <path>` to attach, `--at <time>` to schedule delivery (where the connector supports it) |
-| `void reply <id> --message <text>` | Reply to a message. `--in-thread` for threaded replies, `--file` to attach, `--at` to schedule |
+| `void send --via <connector> --to <recipient> --message <text>` | Send a new message. `--connection <id>` to pick an account, `--subject` (email), `--file <path>` to attach, `--at <time>` to schedule delivery (Slack only) |
+| `void reply <id> --message <text>` | Reply to a message. `--in-thread` for threaded replies, `--file` to attach, `--at` to schedule (Slack only) |
 | `void forward <id> --to <recipient>` | Forward a message. `--comment <text>` to add a note |
 | `void archive <ids...>` | Archive one or more messages (mark as processed). `--before <date>` and `--connector <type>` for bulk archiving |
 | `void mute <targets...>` | Mute conversations/channels (hidden from inbox). `--unmute` to reverse, `--list` to show muted, `--connection`/`--connector` to scope |
 
 ## Calendar
 
-`void calendar` with no subcommand lists today's events. Top-level flags: `--day <date>`, `--from <date>`, `--to <date>`, `--connection`, `--connector`.
+`void calendar` with no subcommand lists today's events. Top-level flags: `--day <date>` (`YYYY-MM-DD`, `today`, `tomorrow`, `yesterday`), `--from <date>`, `--to <date>`, `--connection`, `--connector`.
+
+Times are ISO 8601: `2026-03-31T17:00:00`, `2026-03-31 17:00`, or `2026-03-31` (midnight local). Timezone offsets are accepted; without one, local time is assumed.
 
 | Command | Description |
 |---------|-------------|
 | `void calendar` | Today's events |
 | `void calendar week` | This week's events |
-| `void calendar create --title <t> --start <time>` | Create an event. `--end`, `--description`, `--attendees`, `--meet` (attach a Google Meet link) |
+| `void calendar create --title <t> --start <time>` | Create an event. `--end` (default: start + 30 min), `--description`, `--attendees`, `--meet` (attach a Google Meet link) |
 | `void calendar search <query>` | Search events. `--from`, `--to` |
 | `void calendar respond <id> --status <accept\|decline\|tentative>` | Respond to an invite. `--comment`, `--email` |
 | `void calendar update <id>` | Update an event: `--title`, `--description`, `--start`, `--end` |
@@ -105,7 +107,7 @@ All Slack subcommands accept `--connection <id>`.
 |---------|-------------|
 | `void slack react <id> --emoji <name>` | Add an emoji reaction |
 | `void slack edit <id> --message <text>` | Edit a message you sent |
-| `void slack schedule --channel <c> --message <m> --at <time>` | Schedule a message. `--thread <ts>` for threaded |
+| `void slack schedule --channel <c> --message <m> --at <time>` | Schedule a message. `--at` accepts `HH:MM` (today), `YYYY-MM-DD HH:MM`, or a Unix timestamp. `--thread <ts>` for threaded |
 | `void slack open --users <u1,u2,...>` | Open a DM or group DM with one or more users |
 | `void slack forward <id> --to <channel-or-user>` | Forward a message. `--comment` |
 

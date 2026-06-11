@@ -1,433 +1,175 @@
 # Void CLI
 
-A unified command-line interface for interacting with WhatsApp, Telegram, Slack, Gmail, Google Calendar, Google Drive, LinkedIn, and Hacker News from a single tool — plus LLM-powered hooks.
+**One inbox for everything.** `void` unifies WhatsApp, Telegram, Slack, Gmail, Google Calendar, Google Drive, LinkedIn, and Hacker News into a single local-first command-line tool — one inbox, one search index, one set of commands.
 
-## Quick Start
+It is built for terminals, shell scripts, and AI agents:
 
-Install the latest release from [GitHub Releases](https://github.com/MaximeGaudin/void/releases/latest). Commands install to directories that are already on `PATH` by default on each platform.
+- **One inbox** — `void inbox` shows every unprocessed message across all your accounts
+- **Local-first** — a background daemon syncs everything into SQLite; reads are instant and work offline
+- **Full-text search** — FTS5 across every message on every service
+- **Inbox Zero** — triage, act, archive; muted noise stays out of sight
+- **Agent hooks** — run Claude Code (or any agent CLI) on new messages or cron schedules
+- **Remote mode** — sync on a home server, drive it from any laptop over plain SSH
 
-| Platform | Install command |
-|----------|-----------------|
-| macOS (Apple Silicon) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-arm64.tar.gz \| sudo tar xz -C /usr/local/bin` |
-| macOS (Intel) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-amd64.tar.gz \| sudo tar xz -C /usr/local/bin` |
-| Linux (x86_64) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-amd64.tar.gz \| sudo tar xz -C /usr/local/bin` |
-| Linux (ARM64) | `curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-arm64.tar.gz \| sudo tar xz -C /usr/local/bin` |
-| Windows (PowerShell) | `$dir="$env:LOCALAPPDATA\Programs\void"; New-Item -ItemType Directory -Force -Path $dir \| Out-Null; curl.exe -fsSL -o "$env:TEMP\void.zip" https://github.com/MaximeGaudin/void/releases/latest/download/void-windows-amd64.zip; Expand-Archive -Path "$env:TEMP\void.zip" -DestinationPath $dir -Force; $userPath=[Environment]::GetEnvironmentVariable('Path','User'); if ($userPath -notlike "*$dir*") { [Environment]::SetEnvironmentVariable('Path', "$userPath;$dir", 'User') }; $env:Path += ";$dir"` |
+**Start here:** [Install](docs/install.md) · [Commands](docs/commands.md) · [Connector setup](docs/connectors.md) · [Configuration](docs/configuration.md) · [Hooks](docs/hooks.md) · [Remote store](docs/remote-store.md)
 
-Example (macOS Apple Silicon):
+## Install
 
 ```bash
-# Install latest release
+# macOS (Apple Silicon)
 curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-arm64.tar.gz | sudo tar xz -C /usr/local/bin
-# macOS (Intel):       curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-darwin-amd64.tar.gz | sudo tar xz -C /usr/local/bin
-# Linux (x86_64):      curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-amd64.tar.gz | sudo tar xz -C /usr/local/bin
-# Linux (ARM64):       curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-arm64.tar.gz | sudo tar xz -C /usr/local/bin
-# Windows (PowerShell): $dir="$env:LOCALAPPDATA\Programs\void"; New-Item -ItemType Directory -Force -Path $dir | Out-Null; curl.exe -fsSL -o "$env:TEMP\void.zip" https://github.com/MaximeGaudin/void/releases/latest/download/void-windows-amd64.zip; Expand-Archive -Path "$env:TEMP\void.zip" -DestinationPath $dir -Force; $userPath=[Environment]::GetEnvironmentVariable('Path','User'); if ($userPath -notlike "*$dir*") { [Environment]::SetEnvironmentVariable('Path', "$userPath;$dir", 'User') }; $env:Path += ";$dir"
 
-# Interactive setup — configure connectors, authenticate connections
-void setup
-
-# Start background sync daemon
-void sync --daemon
-
-# Read your unified inbox
-void inbox
-
-# Search across all connectors
-void search "quarterly report"
-
-# Send a message
-void send --via slack --to "#general" --message "Hello team"
-
-# Archive a processed message
-void archive <message-id>
-
-# View today's calendar
-void calendar
+# Linux (x86_64)
+curl -fsSL https://github.com/MaximeGaudin/void/releases/latest/download/void-linux-amd64.tar.gz | sudo tar xz -C /usr/local/bin
 ```
 
-## Inbox Zero
+macOS Intel, Linux ARM64, Windows, and build-from-source: see [Install](docs/install.md).
 
-Void follows an **Inbox Zero** model. All unprocessed messages land in a single inbox. The goal is to reach Inbox Zero — an empty inbox — by processing every item:
-
-1. **Triage**: `void inbox` shows all unarchived messages across every connector
-2. **Act**: Reply, react, draft, delegate, or simply read
-3. **Archive**: `void archive <id>` marks the item as processed
-4. **Done**: When `void inbox` returns nothing, you've reached Inbox Zero
-
-Items are archived because they've been handled — either an action was taken (reply, draft, reaction) or they were informational and acknowledged. Use `void inbox --all` to review archived items.
-
-## Architecture
-
-Void runs a background sync daemon that continuously pulls messages and events from all configured connectors into a local SQLite database. CLI read commands query this local database for instant results. Write operations (send, reply, create event) make direct API calls.
-
-```
-┌────────────────────────────────────────────────────┐
-│                    void CLI                         │
-│                                                     │
-│  Read (local DB)         Write (direct API)         │
-│  ├── void inbox          ├── void send              │
-│  ├── void search         ├── void reply             │
-│  ├── void calendar       ├── void forward           │
-│  ├── void contacts       ├── void archive           │
-│  ├── void channels       ├── void mute              │
-│  ├── void messages       ├── void calendar create   │
-│  ├── void conversations  ├── void gmail draft ...   │
-│                          ├── void gmail forward     │
-│  Automation              ├── void slack react/edit  │
-│  └── void hook           ├── void slack schedule     │
-│                          ├── void slack forward     │
-│                          ├── void telegram forward  │
-│                          ├── void drive download    │
-│                          ├── void whatsapp download │
-│                          ├── void telegram download │
-│                          └── void linkedin download │
-│                                                     │
-│  Sync daemon                                        │
-│  ├── WhatsApp (wa-rs WebSocket)                     │
-│  ├── Telegram (grammers MTProto)                    │
-│  ├── Slack (Socket Mode WebSocket)                  │
-│  ├── Gmail (history.list polling)                   │
-│  ├── Calendar (syncToken polling)                   │
-│  ├── LinkedIn (Unipile API polling)                 │
-│  └── Hacker News (HN API polling)                   │
-└────────────────────────────────────────────────────┘
-```
-
-## Building from Source
+## Quick start
 
 ```bash
-# Build and install to ~/bin
-./scripts/build-install.sh
+void setup            # interactive wizard — connect WhatsApp, Slack, Gmail, ...
+void sync --daemon    # start the background sync daemon
 
-# Or specify a custom directory
-./scripts/build-install.sh /usr/local/bin
+void inbox                                            # everything unprocessed, all services
+void search "quarterly report"                        # full-text search across all of it
+void reply <id> --message "On it — sending today."    # reply from where you are
+void archive <id>                                     # done; on to the next one
 ```
 
-```powershell
-# Windows (PowerShell)
-.\scripts\build-install.ps1
+WhatsApp and Telegram connect by scanning a QR code. Gmail and Calendar ship with built-in OAuth credentials — no Google Cloud project required. Per-service details: [Connector setup](docs/connectors.md).
 
-# Or specify a custom directory
-.\scripts\build-install.ps1 -InstallDir "$HOME\\bin"
+## The Inbox Zero loop
+
+Void follows an **Inbox Zero** model: every unprocessed message from every service lands in a single inbox, and the goal is to empty it.
+
+1. **Triage** — `void inbox` shows all unarchived messages across every connector
+2. **Act** — reply, react, forward, draft, or just read
+3. **Archive** — `void archive <id>` marks the item as processed
+4. **Done** — when `void inbox` returns nothing, you're at Inbox Zero
+
+Noise never reaches the inbox in the first place: `void mute` (or `ignore_conversations` in the config) silences groups and channels permanently. `void inbox --all` reviews what's been archived.
+
+## Everyday examples
+
+### Messaging
+
+```bash
+# Send anywhere through one interface
+void send --via slack --to "#general" --message "Hello team"
+void send --via whatsapp --to "Alice" --message "Running 5 min late"
+void send --via telegram --to "Notes" --file ./screenshot.png
+
+# Threads, reactions, edits, scheduled messages
+void reply <id> --message "Agreed" --in-thread
+void slack react <id> --emoji rocket
+void slack schedule --channel "#standup" --message "OOO today" --at "2026-06-12 09:00"
+
+# Bulk-archive an old backlog
+void archive --before 2026-05-01 --connector slack
 ```
 
-## Commands
+### Gmail
 
-### Core
+Docs: [commands](docs/commands.md#gmail) · [setup](docs/connectors.md#gmail--google-calendar)
 
-| Command | Description |
-|---------|-------------|
-| `void inbox` | Unarchived messages across all connectors |
-| `void search <query>` | Full-text search (FTS5) |
-| `void messages <id>` | Messages in a conversation |
-| `void conversations` | List conversations |
-| `void contacts` | List contacts |
-| `void channels` | List channels and groups (excluding DMs) |
-| `void calendar` | Today's events |
-| `void calendar week` | This week's events |
+```bash
+void gmail search "from:boss newer_than:7d"
+void gmail thread <id>
 
-### Actions
+# Drafts only — void never sends email directly
+void gmail draft create --reply-to <id> --subject "Re: Q3" --body "LGTM, approved."
 
-| Command | Description |
-|---------|-------------|
-| `void send` | Send a new message |
-| `void reply <id>` | Reply to a message (`--in-thread` for threaded replies) |
-| `void forward <id>` | Forward a message to another recipient |
-| `void archive <id>` | Archive a message (mark as processed) |
-| `void mute <target>` | Mute conversations/channels (hides from inbox) |
-| `void mute --unmute` | Unmute previously muted conversations |
-| `void mute --list` | List all muted conversations |
-
-### Connector-Specific
-
-| Command | Description |
-|---------|-------------|
-| `void gmail search` | Search Gmail (Gmail query syntax) |
-| `void gmail thread <id>` | View a full email thread |
-| `void gmail url <id>` | Generate Gmail web URL for a thread |
-| `void gmail labels` | List Gmail labels |
-| `void gmail label <id>` | Modify labels on a thread or message |
-| `void gmail batch-modify` | Batch modify labels on multiple messages |
-| `void gmail drafts` | List drafts |
-| `void gmail draft create` | Create an email draft (never sends directly) |
-| `void gmail draft update <id>` | Update an existing draft |
-| `void gmail draft delete <id>` | Delete a draft |
-| `void gmail attachment` | Download an attachment |
-| `void gmail forward <id>` | Forward a Gmail message to another recipient |
-| `void slack react <id>` | Add an emoji reaction |
-| `void slack edit <id>` | Edit a Slack message |
-| `void slack schedule` | Schedule a message for later |
-| `void slack open` | Open a group DM with multiple users |
-| `void slack forward <id>` | Forward a Slack message to another channel/user |
-| `void whatsapp download <id>` | Download WhatsApp media |
-| `void telegram download <id>` | Download Telegram media |
-| `void telegram forward <id>` | Forward a Telegram message to another chat |
-| `void linkedin download <id>` | Download LinkedIn message media (via Unipile) |
-| `void calendar create` | Create a calendar event |
-| `void calendar search` | Search calendar events |
-| `void calendar respond <id>` | Accept/decline/tentative an invite |
-| `void calendar update <id>` | Update an event |
-| `void calendar delete <id>` | Delete an event |
-| `void calendar availability` | Check attendee availability (FreeBusy) |
-| `void calendar calendars` | List available calendars |
-| `void hn config` | Show current Hacker News configuration |
-| `void hn keywords list\|add\|remove\|set` | Manage watched keywords |
-| `void hn min-score <N>` | Set minimum score threshold |
-| `void drive download <url>` | Download a file from Google Drive/Docs/Sheets/Slides |
-| `void drive info <url>` | Show metadata for a Google Drive file |
-| `void drive auth` | Authenticate with Google Drive |
-
-### Automation
-
-| Command | Description |
-|---------|-------------|
-| `void hook list` | List all hooks |
-| `void hook create` | Create a hook (LLM prompt triggered by events or schedules) |
-| `void hook show <name>` | Show a hook's full configuration |
-| `void hook delete <name>` | Delete a hook |
-| `void hook enable <name>` | Enable a hook |
-| `void hook disable <name>` | Disable a hook |
-| `void hook test <name>` | Test a hook (dry-run) |
-| `void hook log` | View hook execution logs |
-
-### System
-
-| Command | Description |
-|---------|-------------|
-| `void setup` | Interactive setup wizard — add, configure, rename connections |
-| `void sync` | Run sync in the foreground (Ctrl+C to stop) |
-| `void sync --daemon` | Start the background sync daemon |
-| `void sync --restart` | Restart the sync daemon |
-| `void sync --stop` | Stop the sync daemon |
-| `void sync --clear` | Clear database and start fresh |
-| `void doctor` | Check configuration and connectivity |
-| `void remote status` | Show remote store connection and cache status (requires `store.mode = "remote"`) |
-| `void remote refresh` | Force-refresh cached remote config and database snapshot |
-
-### Global Flags
-
-| Flag | Description |
-|------|-------------|
-| `--connector <type>` | Filter by connector: `slack`, `gmail`, `whatsapp`, `telegram`, `calendar`, `linkedin` (alias: `li`), `hackernews` (alias: `hn`) |
-| `--connection <id>` | Filter by connection ID |
-| `-n` / `--size <N>` | Limit number of results (default: 50) |
-| `--all` | Include archived items |
-| `--include-muted` | Include muted conversations |
-| `--store <path>` | Override store directory |
-| `--no-context` | Disable context enrichment (related messages) |
-| `-v` / `--verbose` | Enable debug logging |
-
-## Configuration
-
-Configuration is stored at a platform-specific default path and created by `void setup`:
-
-- Linux: `~/.config/void/config.toml`
-- macOS: prefers existing `~/.config/void/config.toml`, otherwise uses `~/Library/Application Support/void/config.toml`
-- Windows: `%APPDATA%\\void\\config.toml`
-
-Void keeps backward compatibility with existing Unix-style paths when those directories already exist.
-
-```toml
-[store]
-path = "~/.local/share/void"
-
-[sync]
-gmail_poll_interval_secs = 30
-calendar_poll_interval_secs = 60
-hackernews_poll_interval_secs = 3600
-linkedin_poll_interval_secs = 1800
-linkedin_backfill_days = 15
-
-[[connections]]
-id = "whatsapp"
-type = "whatsapp"
-ignore_conversations = ["noisy-group@g.us", "spam"]
-
-[[connections]]
-id = "work-slack"
-type = "slack"
-app_token = "xapp-1-..."
-user_token = "xoxp-..."
-ignore_conversations = ["random", "social"]
-
-[[connections]]
-id = "telegram"
-type = "telegram"
-
-[[connections]]
-id = "mgaudin@gladia.io"
-type = "gmail"
-credentials_file = "~/.config/void/google-credentials.json"
-
-[[connections]]
-id = "mgaudin@gladia.io-calendar"
-type = "calendar"
-credentials_file = "~/.config/void/google-credentials.json"
-calendar_ids = ["primary"]
-
-[[connections]]
-id = "hackernews"
-type = "hackernews"
-keywords = ["rust", "ai", "startup"]
-min_score = 100
-
-[[connections]]
-id = "linkedin"
-type = "linkedin"
-api_key = "your-unipile-api-key"
-dsn = "https://api1.unipile.com:13111"
-account_id = "your-unipile-account-id"
+# Archive in Gmail by removing the INBOX label, in bulk
+void gmail batch-modify <id1> <id2> --remove INBOX
 ```
 
-### `ignore_conversations`
+### Calendar
 
-Any connection can include an `ignore_conversations` list. Matching conversations are auto-muted on every sync start (case-insensitive substring match on name or external ID). This is useful for permanently silencing noisy groups or channels:
+Docs: [commands](docs/commands.md#calendar)
 
-```toml
-[[connections]]
-id = "whatsapp"
-type = "whatsapp"
-ignore_conversations = ["noisy-group@g.us", "spam", "social"]
+```bash
+void calendar                       # today
+void calendar week                  # this week
+void calendar --day tomorrow
+void calendar create --title "1:1 Alice" --start "2026-06-16T14:00" --meet   # ends +30min by default
+void calendar availability --attendees alice@x.com,bob@x.com --from 2026-06-15T09:00 --to 2026-06-15T18:00
+void calendar respond <id> --status accept
 ```
 
-You can also mute/unmute conversations interactively with `void mute` (see [Write Commands](#write-commands)).
+### Google Drive
 
-## Connector Setup
+Docs: [commands](docs/commands.md#google-drive)
 
-### WhatsApp
-
-No external credentials needed. Run `void setup`, select WhatsApp, and scan the QR code with your phone (WhatsApp > Linked Devices > Link a Device).
-
-### Telegram
-
-No external credentials needed. Run `void setup`, select Telegram, and scan the QR code with your phone (Telegram > Settings > Devices > Link Desktop Device).
-
-### Slack
-
-Create a Slack app with a **user token** (`xoxp-`) and an **app-level token** (`xapp-`). Add both tokens through `void setup`.
-
-### Gmail & Google Calendar
-
-Built-in OAuth2 credentials are included — no Google Cloud setup required:
-
-1. Run `void setup` and select Gmail or Calendar
-2. Accept the default built-in credentials (or provide your own Google Cloud credentials file)
-3. Complete the OAuth flow in your browser
-
-Gmail and Calendar share the same OAuth credentials.
-
-### LinkedIn (Unipile)
-
-LinkedIn messages are synced through the [Unipile](https://www.unipile.com/) API. You need a Unipile account with a connected LinkedIn profile.
-
-1. Sign up at [dashboard.unipile.com](https://dashboard.unipile.com)
-2. Connect your LinkedIn account in the Unipile dashboard
-3. Copy your **API key**, **DSN** (API base URL), and **account ID**
-4. Run `void setup`, select LinkedIn, and paste the credentials
-
-```toml
-[[connections]]
-id = "linkedin"
-type = "linkedin"
-api_key = "your-unipile-api-key"
-dsn = "https://api1.unipile.com:13111"
-account_id = "your-unipile-account-id"
+```bash
+void drive download "https://docs.google.com/document/d/..." -o spec.md
+void drive download <sheet-url> --stdout | head    # pipe exported content
 ```
-
-Send messages with `void send --via linkedin --to <chat-id-or-linkedin-member-id> --message "..."`. For new conversations with a connection, use the recipient's LinkedIn provider ID (often starts with `ACo`). For existing chats, use the Unipile chat ID or void conversation external ID.
-
-In addition to DMs, sync pulls **comments on your own posts** (Unipile Posts & Comments API). Each post appears as a thread conversation (`kind: thread`); comments are messages with `metadata.source = linkedin_post_comment`. Reply to a comment with `void reply` (same as DMs).
 
 ### Hacker News
 
-No credentials needed — the HN API is public. Run `void setup`, select Hacker News, enter keywords to watch and a minimum score threshold. Stories matching your keywords and exceeding the minimum score will appear in your inbox during each sync cycle.
+Keyword-watched stories land in your inbox like any other message:
 
-```toml
-[[connections]]
-id = "hackernews"
-type = "hackernews"
-keywords = ["rust", "ai", "startup"]
-min_score = 100
+```bash
+void hn keywords add "rust,local-first"
+void hn min-score 100
 ```
 
-## Data Storage
+### Automation with hooks
 
-All data is stored locally in the configured `store.path` directory:
+Hooks run an AI agent on new messages or cron schedules — and since the agent can call `void` itself, it can triage, draft, and notify on your behalf. Docs: [Hooks](docs/hooks.md)
 
-- **Database**: `<store.path>/void.db` (SQLite with WAL mode)
-- **WhatsApp sessions**: `<store.path>/whatsapp-*.db`
-- **Telegram sessions**: `<store.path>/telegram-*.json`
-- **OAuth tokens**: `<store.path>/*-token.json`
-- **Config**: platform default path (see Configuration section)
+```bash
+# Get pinged on Telegram when an important email lands
+void hook create --name email-triage --trigger new_message --connector gmail \
+  --prompt 'New email: {message}. If important and actionable, send me a one-line summary on Telegram (chat "Notes") via void send. Otherwise do nothing.'
 
-Default `store.path` values:
-- Linux/macOS: `~/.local/share/void` (legacy-compatible default on Unix)
-- Windows: `%APPDATA%\\void` unless a legacy Unix-style path already exists
-
-No external database or Docker required.
-
-### Remote store (SSH)
-
-Run sync on a home server but use `void` locally against the same data. The local machine keeps a thin client profile; the authoritative `config.toml`, credentials, and database live on the server.
-
-```toml
-# Local ~/.config/void/config.toml
-[store]
-mode = "remote"
-
-[store.remote]
-host = "homeserver"
-user = "mgaudin"
-remote_config_path = "~/.config/void/config.toml"
-
-[store.remote.cache]
-path = "~/.cache/void/remote/homeserver"
-config_ttl_secs = 300
-database_ttl_secs = 30
+# Weekday-morning digest
+void hook create --name digest --trigger schedule --cron "0 8 * * mon-fri" \
+  --prompt-file ~/.config/void/prompts/digest.md --max-turns 10
 ```
 
-On the server, configure and run sync as usual (`void setup`, `void sync --daemon`). Locally:
+## How it works
 
-- **Read commands** (`inbox`, `search`, `messages`, …) use a cached DB snapshot pulled over SSH
-- **Write commands** (`send`, `reply`, `archive`, …) are proxied to the server via SSH
-- **File attachments** — `--file` on proxied sends/replies/drafts is staged to the remote store over SCP before the command runs; download commands (`gmail attachment`, `whatsapp download`, `telegram download`, `linkedin download`, `drive download --output`) write to a remote temp path and the result is pulled back to your local `--out` / `--output` path
-- **`void remote status`** — SSH, cache age, remote daemon state
-- **`void remote refresh`** — force-refresh config + DB snapshot
+A background daemon keeps a local SQLite database in sync with every connected service. Read commands hit the local database — instant, offline-capable. Write commands call the service APIs directly.
 
-Global flags:
-- `--config <path>` — local client profile (default: platform config path)
-- `--store <path>` — override remote store path (local mode: override `store.path`)
+```
+            reads (instant, offline)          writes (direct API)
+  void ◄──────────► SQLite (FTS5) ◄────── sync daemon ──────► services
+                                              │
+        WhatsApp │ Telegram │ Slack ──── push (WebSocket / MTProto)
+        Gmail │ Calendar │ LinkedIn │ HN ──── polling
+```
+
+| Crate | Role |
+|-------|------|
+| `void-core` | Config, database, models, hooks, `Connector` trait, sync engine |
+| `void-cli` | The `void` binary: clap commands, output formatting |
+| `void-slack`, `void-gmail`, `void-calendar`, `void-whatsapp`, `void-telegram`, `void-gdrive`, `void-hackernews`, `void-linkedin` | One crate per connector |
+
+All data stays on your machine in `~/.local/share/void` — no external database, no Docker, no cloud. Layout details: [Configuration](docs/configuration.md#data-storage-layout). Or run sync on a server and use the CLI anywhere over SSH: [Remote store](docs/remote-store.md).
+
+## Documentation
+
+- [Install](docs/install.md) — all platforms, build from source
+- [Command reference](docs/commands.md) — every command and flag
+- [Connector setup](docs/connectors.md) — credentials and onboarding per service
+- [Configuration](docs/configuration.md) — full `config.toml` schema, data layout
+- [Hooks](docs/hooks.md) — LLM automation: triggers, placeholders, agent contract
+- [Remote store](docs/remote-store.md) — server-side sync over SSH
+- [Adding a connector](docs/adding-a-connector.md) — wire in a new service
 
 ## Development
 
 ```bash
-cargo fmt           # Format
-cargo clippy        # Lint
-cargo test          # Test
-cargo build --release  # Build release
+cargo fmt && cargo clippy && cargo test
+cargo build --release
 ```
 
-### Workspace Structure
-
-```
-crates/
-  void-core/       # Shared: config, DB, models, hooks, Connector trait, SyncEngine
-  void-cli/        # Binary: clap commands, output formatting
-  void-slack/      # Slack connector: Web API client
-  void-gmail/      # Gmail connector: OAuth2, API client
-  void-calendar/   # Calendar connector: shared OAuth, API client
-  void-whatsapp/   # WhatsApp connector: wa-rs integration
-  void-telegram/   # Telegram connector: grammers MTProto integration
-  void-gdrive/     # Google Drive connector: download, export, metadata
-  void-hackernews/ # Hacker News connector: keyword-filtered story monitoring
-  void-linkedin/  # LinkedIn connector: Unipile REST API integration
-```
+Contributions welcome — [Adding a connector](docs/adding-a-connector.md) is the best place to start.
 
 ## License
 
 Copyright (C) 2026 Maxime Gaudin
 
-This program is free software: you can redistribute it and/or modify it under the terms of the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html) as published by the Free Software Foundation.
-
-See [LICENSE](LICENSE) for the full text.
+Free software under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html). See [LICENSE](LICENSE) for the full text.
