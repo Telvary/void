@@ -44,9 +44,6 @@ crates/
       sync.rs                       # Sync command (session cleanup)
       reply.rs                      # Reply ID formatting
       acme.rs                       # NEW — connector-specific subcommands
-  void-agent/src/
-    prompt.rs                       # AI agent system prompt
-    tools.rs                        # AI agent tool descriptions
 README.md
 ```
 
@@ -832,27 +829,7 @@ if ct == "acme" {
 
 ---
 
-## Step 9 — Update the AI Agent
-
-### `crates/void-agent/src/prompt.rs`
-
-Update `DEFAULT_SYSTEM_PROMPT`:
-
-- Add your connector to every mention of "Gmail, Slack, WhatsApp, and Google Calendar"
-- Add an inbox processing step: `void inbox --connector acme`
-- Add to the "NEVER send ... without confirmation" rule if applicable
-
-### `crates/void-agent/src/tools.rs`
-
-Update the `VoidCommandTool` definition string:
-
-- Description: add your connector name
-- `inbox` command help: add `|acme` to `--connector`
-- `send` command help: add `|acme` to `--via` (if sending is supported)
-
----
-
-## Step 10 — Workspace Configuration
+## Step 9 — Workspace Configuration
 
 ### `Cargo.toml` (workspace root)
 
@@ -874,7 +851,7 @@ void-acme = { path = "crates/void-acme" }
 
 ---
 
-## Step 11 — README
+## Step 10 — README
 
 Update `README.md`:
 
@@ -886,7 +863,7 @@ Update `README.md`:
 
 ---
 
-## Step 12 — Verify
+## Step 11 — Verify
 
 Run the full build pipeline:
 
@@ -943,8 +920,6 @@ Use this as a final review checklist:
 - [ ] `void-cli/src/output.rs` — `parse_connector_type` (aliases)
 - [ ] `void-cli/src/commands/reply.rs` — `build_reply_id`
 - [ ] `void-cli/src/commands/sync.rs` — session cleanup in `--clear_connector`
-- [ ] `void-agent/src/prompt.rs` — system prompt updated
-- [ ] `void-agent/src/tools.rs` — tool descriptions updated
 - [ ] `Cargo.toml` (root) — workspace members + deps
 - [ ] `README.md` — updated
 - [ ] `cargo fmt && cargo clippy && cargo test && cargo build --release` — all pass

@@ -1,6 +1,6 @@
 # Void CLI
 
-A unified command-line interface for interacting with WhatsApp, Telegram, Slack, Gmail, Google Calendar, Google Drive, LinkedIn, and Hacker News from a single tool — plus an AI agent and LLM-powered hooks.
+A unified command-line interface for interacting with WhatsApp, Telegram, Slack, Gmail, Google Calendar, Google Drive, LinkedIn, and Hacker News from a single tool — plus LLM-powered hooks.
 
 ## Quick Start
 
@@ -74,9 +74,9 @@ Void runs a background sync daemon that continuously pulls messages and events f
 │  ├── void messages       ├── void calendar create   │
 │  ├── void conversations  ├── void gmail draft ...   │
 │                          ├── void gmail forward     │
-│  AI & Automation         ├── void slack react/edit  │
-│  ├── void agent          ├── void slack schedule     │
-│  └── void hook           ├── void slack forward     │
+│  Automation              ├── void slack react/edit  │
+│  └── void hook           ├── void slack schedule     │
+│                          ├── void slack forward     │
 │                          ├── void telegram forward  │
 │                          ├── void drive download    │
 │                          ├── void whatsapp download │
@@ -178,11 +178,10 @@ Void runs a background sync daemon that continuously pulls messages and events f
 | `void drive info <url>` | Show metadata for a Google Drive file |
 | `void drive auth` | Authenticate with Google Drive |
 
-### AI & Automation
+### Automation
 
 | Command | Description |
 |---------|-------------|
-| `void agent` | Start an interactive AI agent with access to all connectors |
 | `void hook list` | List all hooks |
 | `void hook create` | Create a hook (LLM prompt triggered by events or schedules) |
 | `void hook show <name>` | Show a hook's full configuration |
@@ -423,7 +422,6 @@ crates/
   void-gdrive/     # Google Drive connector: download, export, metadata
   void-hackernews/ # Hacker News connector: keyword-filtered story monitoring
   void-linkedin/  # LinkedIn connector: Unipile REST API integration
-  void-agent/      # AI agent: LLM-powered interactive assistant with tool access
 ```
 
 ## License

@@ -11,7 +11,6 @@ members = [
     "crates/void-gdrive",
     "crates/void-hackernews",
     "crates/void-linkedin",
-    "crates/void-agent",
 ]
 
 [workspace.package]
@@ -77,4 +76,3 @@ void-telegram = { path = "crates/void-telegram" }
 void-gdrive = { path = "crates/void-gdrive" }
 void-hackernews = { path = "crates/void-hackernews" }
 void-linkedin = { path = "crates/void-linkedin" }
-void-agent = { path = "crates/void-agent" }

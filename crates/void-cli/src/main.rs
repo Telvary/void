@@ -78,8 +78,6 @@ enum Command {
     Calendar(commands::calendar::CalendarArgs),
     /// Download files from Google Drive/Docs/Sheets/Slides
     Drive(commands::gdrive::GdriveArgs),
-    /// Start an AI-powered agent for processing communications
-    Agent(commands::agent::AgentArgs),
     /// Manage hooks — LLM prompts triggered by events or schedules
     Hook(commands::hook::HookArgs),
     /// Remote store utilities (status, cache refresh)
@@ -191,7 +189,6 @@ async fn async_main(cli: Cli) -> anyhow::Result<()> {
         Some(Command::Linkedin(args)) => commands::linkedin::run(args).await,
         Some(Command::Calendar(args)) => commands::calendar::run(args).await,
         Some(Command::Drive(args)) => commands::gdrive::run(args).await,
-        Some(Command::Agent(args)) => commands::agent::run(args, cli.verbose).await,
         Some(Command::Hook(args)) => commands::hook::run(args),
         Some(Command::Remote(args)) => {
             commands::remote::run(args, cli.config.as_deref(), cli.store.as_deref())
