@@ -210,7 +210,7 @@ fn find_google_connection<'a>(
         .iter()
         .find(|a| {
             let is_google = google_types.contains(&a.connector_type);
-            let name_matches = filter.map_or(true, |n| a.id == n);
+            let name_matches = filter.is_none_or(|n| a.id == n);
             is_google && name_matches
         })
         .ok_or_else(|| {

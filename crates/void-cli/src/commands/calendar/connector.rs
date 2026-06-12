@@ -11,7 +11,7 @@ pub(super) fn build_calendar_connector(
         .iter()
         .find(|a| {
             let is_calendar = a.connector_type == ConnectorType::Calendar;
-            let name_matches = connection_filter.map_or(true, |n| a.id == n);
+            let name_matches = connection_filter.is_none_or(|n| a.id == n);
             is_calendar && name_matches
         })
         .ok_or_else(|| {

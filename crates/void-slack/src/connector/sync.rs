@@ -105,7 +105,7 @@ impl SlackConnector {
 
         let active: Vec<_> = conversations
             .iter()
-            .filter(|c| c.updated.map_or(true, |u| u >= oldest_secs))
+            .filter(|c| c.updated.is_none_or(|u| u >= oldest_secs))
             .collect();
 
         void_core::status!(

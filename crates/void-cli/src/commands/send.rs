@@ -46,7 +46,7 @@ pub async fn run(args: &SendArgs) -> anyhow::Result<()> {
         .iter()
         .find(|a| {
             let type_matches = a.connector_type.to_string() == target_type;
-            let name_matches = args.connection.as_ref().map_or(true, |n| a.id == *n);
+            let name_matches = args.connection.as_ref().is_none_or(|n| a.id == *n);
             type_matches && name_matches
         })
         .ok_or_else(|| anyhow::anyhow!("No {target_type} connection found in config.toml"))?;

@@ -209,7 +209,7 @@ fn build_slack_connector(
         .iter()
         .find(|a| {
             let is_slack = a.connector_type == ConnectorType::Slack;
-            let name_matches = connection_filter.map_or(true, |n| a.id == n);
+            let name_matches = connection_filter.is_none_or(|n| a.id == n);
             is_slack && name_matches
         })
         .ok_or_else(|| {

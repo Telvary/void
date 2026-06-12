@@ -38,7 +38,7 @@ fn build_gmail_connector(
         .iter()
         .find(|a| {
             let is_gmail = a.connector_type == ConnectorType::Gmail;
-            let name_matches = connection_filter.map_or(true, |n| a.id == n);
+            let name_matches = connection_filter.is_none_or(|n| a.id == n);
             is_gmail && name_matches
         })
         .ok_or_else(|| {
