@@ -102,7 +102,7 @@ fn build_wa_connector(
         .iter()
         .find(|a| {
             let is_wa = a.connector_type == ConnectorType::WhatsApp;
-            let name_matches = connection_filter.map_or(true, |n| a.id == n);
+            let name_matches = connection_filter.is_none_or(|n| a.id == n);
             is_wa && name_matches
         })
         .ok_or_else(|| {

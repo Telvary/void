@@ -140,7 +140,7 @@ fn build_tg_connector(
         .iter()
         .find(|a| {
             let is_tg = a.connector_type == ConnectorType::Telegram;
-            let name_matches = connection_filter.map_or(true, |n| a.id == n);
+            let name_matches = connection_filter.is_none_or(|n| a.id == n);
             is_tg && name_matches
         })
         .ok_or_else(|| {
