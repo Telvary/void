@@ -7,3 +7,7 @@
 .env
 .env.*
 .DS_Store
+
+# Local AI/editor tooling (use freely, don't commit)
+graphify-out/
+.cursor/
