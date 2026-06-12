@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-06-12
+
 ### Added
 
 - **Docs** — New [deployment modes](docs/deployment.md) guide explaining the two ways to run void (all-local vs sync on an always-on server) with trade-offs and a migration path; the README now summarizes both modes.
+
+### Changed
+
+- **Dependencies** — Bumped reqwest (0.13), toml (0.9), sysinfo (0.39), and a group of minor/patch updates.
 
 ### Fixed
 
