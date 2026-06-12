@@ -8,6 +8,9 @@
 .env.*
 .DS_Store
 
-# Local AI/editor tooling (use freely, don't commit)
+# Local AI/editor tooling (use freely, don't commit) — except agent skills,
+# which are versioned and shared between Cursor and Claude Code
+# (.claude/skills is a symlink to .cursor/skills).
 graphify-out/
-.cursor/
+.cursor/*
+!.cursor/skills/
