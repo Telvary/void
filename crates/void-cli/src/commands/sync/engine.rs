@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{error, info};
+use void_core::models::ConnectorType;
 
+use void_core::connector::Connector;
 use void_core::db::Database;
 use void_core::hooks::{self, HookRunner};
 use void_core::sync::SyncEngine;
+use void_whatsapp::rpc::Server as WhatsAppRpcServer;
 
 use crate::commands::connector_factory;
 use crate::output::{resolve_connector_filter, resolve_connector_list};
@@ -88,6 +91,7 @@ pub async fn run(args: &SyncArgs) -> anyhow::Result<()> {
 
     let mut connectors: Vec<Arc<dyn void_core::connector::Connector>> = Vec::new();
     let mut broken: Vec<String> = Vec::new();
+    let wa_rpc = WhatsAppRpcServer::new(&store_path);
 
     for connection in &cfg.connections {
         if let Some(ref filter) = connector_filter {
@@ -95,6 +99,29 @@ pub async fn run(args: &SyncArgs) -> anyhow::Result<()> {
             if !filter.iter().any(|f| type_str.contains(f)) {
                 continue;
             }
+        }
+
+        if connection.connector_type == ConnectorType::WhatsApp {
+            let wa = connector_factory::build_whatsapp_connector(connection, &store_path);
+            wa_rpc.register(&connection.id, Arc::clone(&wa)).await;
+            match wa.health_check().await {
+                Ok(status) if status.ok => {
+                    connectors.push(wa as Arc<dyn void_core::connector::Connector>)
+                }
+                Ok(status) => {
+                    broken.push(format!(
+                        "Connection '{}' ({}) is broken: {}. Run `void setup` to fix.",
+                        connection.id, connection.connector_type, status.message
+                    ));
+                }
+                Err(e) => {
+                    broken.push(format!(
+                        "Connection '{}' ({}) is broken: {e}. Run `void setup` to fix.",
+                        connection.id, connection.connector_type
+                    ));
+                }
+            }
+            continue;
         }
 
         match connector_factory::build_connector(connection, &store_path) {
@@ -163,6 +190,15 @@ pub async fn run(args: &SyncArgs) -> anyhow::Result<()> {
     };
 
     let cancel = CancellationToken::new();
+
+    if wa_rpc.has_handlers().await {
+        let cancel_rpc = cancel.clone();
+        tokio::spawn(async move {
+            if let Err(e) = wa_rpc.run(cancel_rpc).await {
+                error!("WhatsApp RPC server stopped: {e}");
+            }
+        });
+    }
 
     let ignore_rules: Vec<(String, Vec<String>)> = cfg
         .connections

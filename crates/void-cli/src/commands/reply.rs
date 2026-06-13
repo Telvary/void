@@ -3,6 +3,7 @@ use tracing::{debug, info};
 
 use void_core::models::ConnectorType;
 use void_core::models::MessageContent;
+use void_core::sync::is_daemon_running;
 
 use crate::commands::connector_factory;
 use crate::output::parse_connector_type;
@@ -67,8 +68,6 @@ pub async fn run(args: &ReplyArgs) -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Unknown connector type: {}", connection.connector_type))?;
 
     let store_path = crate::context::store_path();
-    let conn = connector_factory::build_connector(connection, &store_path)?;
-
     let reply_id = build_reply_id(connector_type, &conv.external_id, &msg.external_id);
 
     let content = if let Some(ref path) = args.file {
@@ -80,7 +79,20 @@ pub async fn run(args: &ReplyArgs) -> anyhow::Result<()> {
     } else {
         MessageContent::Text(args.message.clone())
     };
-    let sent_id = conn.reply(&reply_id, content, args.in_thread).await?;
+
+    let sent_id = if connector_type == ConnectorType::WhatsApp && is_daemon_running(&store_path) {
+        void_whatsapp::rpc::reply_message(
+            &store_path,
+            &connection.id,
+            &reply_id,
+            content,
+            args.in_thread,
+        )
+        .await?
+    } else {
+        let conn = connector_factory::build_connector(connection, &store_path)?;
+        conn.reply(&reply_id, content, args.in_thread).await?
+    };
 
     eprintln!("Reply sent (id: {sent_id})");
     Ok(())

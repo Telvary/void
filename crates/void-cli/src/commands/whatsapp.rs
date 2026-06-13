@@ -2,6 +2,7 @@ use clap::{Args, Subcommand};
 use tracing::debug;
 use void_core::config::VoidConfig;
 use void_core::models::ConnectorType;
+use void_core::sync::is_daemon_running;
 
 #[derive(Debug, Args)]
 pub struct WhatsAppArgs {
@@ -71,22 +72,42 @@ async fn run_download(args: &DownloadArgs) -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("No media_type in metadata."))?;
 
     let connector = build_wa_connector(args.connection.as_deref(), cfg)?;
+    let store_path = crate::context::store_path();
+    let connection_id = connector.connection_id();
 
     eprintln!(
         "Downloading {} ({} bytes) from WhatsApp...",
         media_type, file_length
     );
 
-    let data = connector
-        .download_media(
-            direct_path,
-            media_key,
-            file_sha256,
-            file_enc_sha256,
-            file_length,
-            media_type,
+    let data = if is_daemon_running(&store_path) {
+        void_whatsapp::rpc::download_media(
+            &store_path,
+            connection_id,
+            void_whatsapp::rpc::RpcDownloadParams {
+                direct_path: direct_path.to_string(),
+                media_key: media_key.to_string(),
+                file_sha256: file_sha256.to_string(),
+                file_enc_sha256: file_enc_sha256.to_string(),
+                file_length,
+                media_type: media_type.to_string(),
+            },
         )
-        .await?;
+        .await
+        .map_err(|e| anyhow::anyhow!("{e}"))?
+    } else {
+        connector
+            .download_media(
+                direct_path,
+                media_key,
+                file_sha256,
+                file_enc_sha256,
+                file_length,
+                media_type,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?
+    };
 
     crate::commands::write_download(&args.out, &data)?;
     eprintln!("Saved to {} ({} bytes).", args.out, data.len());

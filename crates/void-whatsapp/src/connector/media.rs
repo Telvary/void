@@ -126,8 +126,57 @@ pub(crate) async fn upload_and_build_media_message(
     Ok(msg)
 }
 
+pub(crate) async fn download_media_with_client(
+    client: &Client,
+    direct_path: &str,
+    media_key_b64: &str,
+    file_sha256_b64: &str,
+    file_enc_sha256_b64: &str,
+    file_length: u64,
+    media_type_str: &str,
+) -> Result<Vec<u8>, crate::error::WhatsAppError> {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+
+    let media_key = STANDARD
+        .decode(media_key_b64)
+        .map_err(|e| crate::error::WhatsAppError::Decode(e.to_string()))?;
+    let file_sha256 = STANDARD
+        .decode(file_sha256_b64)
+        .map_err(|e| crate::error::WhatsAppError::Decode(e.to_string()))?;
+    let file_enc_sha256 = STANDARD
+        .decode(file_enc_sha256_b64)
+        .map_err(|e| crate::error::WhatsAppError::Decode(e.to_string()))?;
+
+    let media_type = match media_type_str {
+        "image" => WaMediaType::Image,
+        "video" => WaMediaType::Video,
+        "audio" => WaMediaType::Audio,
+        "document" => WaMediaType::Document,
+        "sticker" => WaMediaType::Sticker,
+        other => {
+            return Err(crate::error::WhatsAppError::Media(format!(
+                "unsupported media type: {other}"
+            )))
+        }
+    };
+
+    client
+        .download_from_params(
+            direct_path,
+            &media_key,
+            &file_sha256,
+            &file_enc_sha256,
+            file_length,
+            media_type,
+        )
+        .await
+        .map_err(|e| crate::error::WhatsAppError::Media(format!("download failed: {e}")))
+}
+
 impl WhatsAppConnector {
     /// Download encrypted media from WhatsApp using direct_path and keys.
+    /// Opens a standalone connection when the sync daemon is not running.
     pub async fn download_media(
         &self,
         direct_path: &str,
@@ -137,9 +186,6 @@ impl WhatsAppConnector {
         file_length: u64,
         media_type_str: &str,
     ) -> Result<Vec<u8>, crate::error::WhatsAppError> {
-        use base64::engine::general_purpose::STANDARD;
-        use base64::Engine;
-
         self.ensure_connected()
             .await
             .map_err(|e| crate::error::WhatsAppError::Connection(e.to_string()))?;
@@ -147,42 +193,15 @@ impl WhatsAppConnector {
         let client = guard.as_ref().ok_or_else(|| {
             crate::error::WhatsAppError::Connection("WhatsApp not connected".into())
         })?;
-
-        let media_key = STANDARD
-            .decode(media_key_b64)
-            .map_err(|e| crate::error::WhatsAppError::Decode(e.to_string()))?;
-        let file_sha256 = STANDARD
-            .decode(file_sha256_b64)
-            .map_err(|e| crate::error::WhatsAppError::Decode(e.to_string()))?;
-        let file_enc_sha256 = STANDARD
-            .decode(file_enc_sha256_b64)
-            .map_err(|e| crate::error::WhatsAppError::Decode(e.to_string()))?;
-
-        let media_type = match media_type_str {
-            "image" => WaMediaType::Image,
-            "video" => WaMediaType::Video,
-            "audio" => WaMediaType::Audio,
-            "document" => WaMediaType::Document,
-            "sticker" => WaMediaType::Sticker,
-            other => {
-                return Err(crate::error::WhatsAppError::Media(format!(
-                    "unsupported media type: {other}"
-                )))
-            }
-        };
-
-        let data = client
-            .download_from_params(
-                direct_path,
-                &media_key,
-                &file_sha256,
-                &file_enc_sha256,
-                file_length,
-                media_type,
-            )
-            .await
-            .map_err(|e| crate::error::WhatsAppError::Media(format!("download failed: {e}")))?;
-
-        Ok(data)
+        download_media_with_client(
+            client,
+            direct_path,
+            media_key_b64,
+            file_sha256_b64,
+            file_enc_sha256_b64,
+            file_length,
+            media_type_str,
+        )
+        .await
     }
 }

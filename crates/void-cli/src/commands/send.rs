@@ -4,6 +4,7 @@ use tracing::{debug, info};
 use void_core::config::VoidConfig;
 use void_core::models::ConnectorType;
 use void_core::models::MessageContent;
+use void_core::sync::is_daemon_running;
 
 use crate::commands::connector_factory;
 use crate::output::parse_connector_type;
@@ -59,9 +60,6 @@ pub async fn run(args: &SendArgs) -> anyhow::Result<()> {
     }
 
     let store_path = crate::context::store_path();
-    let conn = connector_factory::build_connector(connection, &store_path)?;
-    debug!("connector built");
-
     let to = resolve_target(&args.to, &target_type, cfg)?;
 
     let content = if let Some(ref path) = args.file {
@@ -74,7 +72,12 @@ pub async fn run(args: &SendArgs) -> anyhow::Result<()> {
         MessageContent::Text(args.message.clone())
     };
 
-    let msg_id = conn.send_message(&to, content).await?;
+    let msg_id = if connector_type == ConnectorType::WhatsApp && is_daemon_running(&store_path) {
+        void_whatsapp::rpc::send_message(&store_path, &connection.id, &to, content).await?
+    } else {
+        let conn = connector_factory::build_connector(connection, &store_path)?;
+        conn.send_message(&to, content).await?
+    };
     eprintln!("Message sent (id: {msg_id})");
     Ok(())
 }

@@ -104,6 +104,29 @@ impl SyncEngine {
     }
 }
 
+/// Returns true when a sync daemon lock file exists and its PID is alive.
+pub fn is_daemon_running(store_path: &Path) -> bool {
+    let lock_path = store_path.join("LOCK");
+    if !lock_path.exists() {
+        return false;
+    }
+    let content = match std::fs::read_to_string(&lock_path) {
+        Ok(content) => content,
+        Err(_) => return false,
+    };
+    let pid_str = match content.trim().strip_prefix("pid=") {
+        Some(pid) => pid,
+        None => return false,
+    };
+    let pid: u32 = match pid_str.parse() {
+        Ok(pid) => pid,
+        Err(_) => return false,
+    };
+    let mut system = System::new_all();
+    system.refresh_all();
+    system.process(Pid::from_u32(pid)).is_some()
+}
+
 /// Wait for either SIGINT (Ctrl+C) or SIGTERM and return which signal fired.
 async fn wait_for_shutdown_signal() -> &'static str {
     #[cfg(unix)]
@@ -461,6 +484,26 @@ mod tests {
             "expected lock to be overwritten with pid=..., got {content:?}"
         );
 
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn is_daemon_running_true_for_current_pid() {
+        let dir = std::env::temp_dir().join(format!("void-daemon-detect-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let lock_path = dir.join("LOCK");
+        std::fs::write(&lock_path, format!("pid={}", std::process::id())).unwrap();
+        assert!(super::is_daemon_running(&dir));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn is_daemon_running_false_when_pid_is_stale() {
+        let dir = std::env::temp_dir().join(format!("void-daemon-stale-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let lock_path = dir.join("LOCK");
+        std::fs::write(&lock_path, "pid=999999999").unwrap();
+        assert!(!super::is_daemon_running(&dir));
         std::fs::remove_dir_all(&dir).ok();
     }
 }

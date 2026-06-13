@@ -5,6 +5,18 @@ use tracing::debug;
 use void_core::config::{expand_tilde, ConnectionConfig, ConnectionSettings};
 use void_core::connector::Connector;
 use void_core::models::ConnectorType;
+use void_whatsapp::connector::WhatsAppConnector;
+
+pub fn build_whatsapp_connector(
+    connection: &ConnectionConfig,
+    store_path: &Path,
+) -> Arc<WhatsAppConnector> {
+    let session_db = store_path.join(format!("whatsapp-{}.db", connection.id));
+    Arc::new(WhatsAppConnector::new(
+        &connection.id,
+        session_db.to_str().unwrap_or(""),
+    ))
+}
 
 pub fn build_connector(
     connection: &ConnectionConfig,
@@ -53,11 +65,7 @@ pub fn build_connector(
             )))
         }
         (ConnectorType::WhatsApp, ConnectionSettings::WhatsApp {}) => {
-            let session_db = store_path.join(format!("whatsapp-{}.db", connection.id));
-            Ok(Arc::new(void_whatsapp::connector::WhatsAppConnector::new(
-                &connection.id,
-                session_db.to_str().unwrap_or(""),
-            )))
+            Ok(build_whatsapp_connector(connection, store_path) as Arc<dyn Connector>)
         }
         (
             ConnectorType::Telegram,

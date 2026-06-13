@@ -8,8 +8,9 @@ description = "WhatsApp adapter for Void CLI"
 
 [dependencies]
 void-core = { workspace = true }
-tokio = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
@@ -23,3 +24,6 @@ wa-rs-proto = "0.2"
 qr2term = "0.3"
 base64 = { workspace = true }
 chrono = { workspace = true }
+
+[dev-dependencies]
+uuid = { workspace = true }

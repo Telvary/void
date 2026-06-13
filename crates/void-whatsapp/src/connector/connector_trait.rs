@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use wa_rs::bot::Bot;
-use wa_rs::send::SendOptions;
 use wa_rs::types::events::Event;
 use wa_rs_sqlite_storage::SqliteStore;
 use wa_rs_tokio_transport::TokioWebSocketTransportFactory;
@@ -14,8 +13,6 @@ use void_core::connector::Connector;
 use void_core::db::Database;
 use void_core::models::*;
 
-use super::media::upload_and_build_media_message;
-use super::send::{build_wa_message, parse_jid, parse_reply_id};
 use super::sync::{handle_history_sync, handle_message, render_qr};
 use super::WhatsAppConnector;
 
@@ -235,36 +232,7 @@ impl Connector for WhatsAppConnector {
 
     async fn send_message(&self, to: &str, content: MessageContent) -> anyhow::Result<String> {
         self.ensure_connected().await?;
-        let guard = self.client.lock().await;
-        let client = guard
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("WhatsApp not connected"))?;
-        let jid = parse_jid(to)?;
-        info!(connection_id = %self.config_id, recipient_jid = %jid, "sending WhatsApp message");
-
-        let msg = match &content {
-            MessageContent::File {
-                path,
-                caption,
-                mime_type,
-            } => {
-                upload_and_build_media_message(
-                    client,
-                    path,
-                    caption.as_deref(),
-                    mime_type.as_deref(),
-                    None,
-                )
-                .await?
-            }
-            _ => build_wa_message(&content, None)?,
-        };
-
-        let msg_id = client
-            .send_message_with_options(jid, msg, SendOptions::default())
-            .await?;
-        debug!(connection_id = %self.config_id, message_id = %msg_id, "WhatsApp message sent");
-        Ok(msg_id)
+        self.send_via_sync(to, content).await
     }
 
     /// Reply to a WhatsApp message. `message_id` format: `chat_jid:wa_msg_id`.
@@ -275,48 +243,7 @@ impl Connector for WhatsAppConnector {
         content: MessageContent,
         in_thread: bool,
     ) -> anyhow::Result<String> {
-        let (chat_jid_str, quoted_msg_id) = parse_reply_id(message_id)?;
-        info!(connection_id = %self.config_id, reply_target = %chat_jid_str, quoted_msg_id = %quoted_msg_id, in_thread, "sending WhatsApp reply");
-
         self.ensure_connected().await?;
-        let guard = self.client.lock().await;
-        let client = guard
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("WhatsApp not connected"))?;
-
-        let jid = parse_jid(&chat_jid_str)?;
-
-        let context_info = if in_thread {
-            Some(wa_rs_proto::whatsapp::ContextInfo {
-                stanza_id: Some(quoted_msg_id),
-                ..Default::default()
-            })
-        } else {
-            None
-        };
-
-        let msg = match &content {
-            MessageContent::File {
-                path,
-                caption,
-                mime_type,
-            } => {
-                upload_and_build_media_message(
-                    client,
-                    path,
-                    caption.as_deref(),
-                    mime_type.as_deref(),
-                    context_info,
-                )
-                .await?
-            }
-            _ => build_wa_message(&content, context_info)?,
-        };
-
-        let msg_id = client
-            .send_message_with_options(jid, msg, SendOptions::default())
-            .await?;
-        debug!(connection_id = %self.config_id, message_id = %msg_id, "WhatsApp reply sent");
-        Ok(msg_id)
+        self.reply_via_sync(message_id, content, in_thread).await
     }
 }

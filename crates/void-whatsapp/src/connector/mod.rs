@@ -3,6 +3,7 @@
 mod connector_trait;
 mod extract;
 mod media;
+mod ops;
 mod send;
 mod sync;
 
