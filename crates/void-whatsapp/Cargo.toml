@@ -17,6 +17,8 @@ thiserror = { workspace = true }
 async-trait = { workspace = true }
 tokio-util = { workspace = true }
 wa-rs = "0.2"
+wa-rs-core = "0.2"
+wa-rs-binary = "0.2"
 wa-rs-sqlite-storage = "0.2"
 wa-rs-tokio-transport = "0.2"
 wa-rs-ureq-http = "0.2"

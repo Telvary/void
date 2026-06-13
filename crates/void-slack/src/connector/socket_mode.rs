@@ -461,6 +461,7 @@ pub(crate) fn build_socket_metadata(
         ConversationKind::Group => "group_dm",
         ConversationKind::Channel => "channel",
         ConversationKind::Thread => "thread",
+        ConversationKind::SelfChat => "dm",
     };
     let channel_name = conv.name.as_deref().unwrap_or(channel_id);
     let mut meta = serde_json::json!({

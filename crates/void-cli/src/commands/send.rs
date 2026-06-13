@@ -11,9 +11,8 @@ use crate::output::parse_connector_type;
 
 #[derive(Debug, Args)]
 pub struct SendArgs {
-    /// Recipient (phone number, channel name, email)
-    #[arg(long)]
-    pub to: String,
+    #[command(flatten)]
+    pub recipient: SendRecipientArgs,
     /// Connector to send via: whatsapp, slack, gmail
     #[arg(long)]
     pub via: String,
@@ -34,8 +33,24 @@ pub struct SendArgs {
     pub at: Option<String>,
 }
 
+#[derive(Debug, Args)]
+#[group(required = true, multiple = false)]
+pub struct SendRecipientArgs {
+    /// Recipient (phone number, channel name, email)
+    #[arg(long = "to")]
+    pub to: Option<String>,
+    /// void conversation id (e.g. wa_whatsapp_94004066660357@lid for WhatsApp notes-to-self)
+    #[arg(long)]
+    pub conversation: Option<String>,
+}
+
 pub async fn run(args: &SendArgs) -> anyhow::Result<()> {
-    info!(via = %args.via, to = %args.to, "send");
+    info!(
+        via = %args.via,
+        to = ?args.recipient.to,
+        conversation = ?args.recipient.conversation,
+        "send"
+    );
     let connector_type = parse_connector_type(&args.via)
         .ok_or_else(|| anyhow::anyhow!("Unknown connector type: {}", args.via))?;
 
@@ -56,11 +71,21 @@ pub async fn run(args: &SendArgs) -> anyhow::Result<()> {
         if connection.connector_type != ConnectorType::Slack {
             anyhow::bail!("Scheduled sending (--at) is only supported for Slack.");
         }
-        return run_slack_scheduled_send(connection, cfg, &args.to, &args.message, at_str).await;
+        let to = args
+            .recipient
+            .to
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("--to is required for scheduled Slack sends"))?;
+        return run_slack_scheduled_send(connection, cfg, to, &args.message, at_str).await;
     }
 
     let store_path = crate::context::store_path();
-    let to = resolve_target(&args.to, &target_type, cfg)?;
+    let to = resolve_target(
+        args.recipient.to.as_deref(),
+        args.recipient.conversation.as_deref(),
+        &target_type,
+        cfg,
+    )?;
 
     let content = if let Some(ref path) = args.file {
         MessageContent::File {
@@ -129,10 +154,36 @@ async fn run_slack_scheduled_send(
     Ok(())
 }
 
-/// Resolve `#channel-name` to a channel ID using the local database.
-/// Returns the original value if not a `#name` target or not found (the
-/// connector will handle the final resolution via the Slack API).
-fn resolve_target(to: &str, connector_type: &str, _cfg: &VoidConfig) -> anyhow::Result<String> {
+/// Resolve `#channel-name` to a channel ID using the local database, or map a
+/// void conversation id to its connector external id when `--conversation` is used.
+fn resolve_target(
+    to: Option<&str>,
+    conversation: Option<&str>,
+    connector_type: &str,
+    _cfg: &VoidConfig,
+) -> anyhow::Result<String> {
+    if let Some(conv_id) = conversation {
+        let db = crate::context::open_db()?;
+        let conv = db
+            .get_conversation(conv_id)?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found: {conv_id}"))?;
+        if conv.connector != connector_type {
+            anyhow::bail!(
+                "Conversation {conv_id} belongs to connector {}, not {connector_type}",
+                conv.connector
+            );
+        }
+        debug!(
+            conversation_id = conv_id,
+            external_id = %conv.external_id,
+            kind = %conv.kind,
+            "resolved conversation to external id"
+        );
+        return Ok(conv.external_id);
+    }
+
+    let to = to.ok_or_else(|| anyhow::anyhow!("Either --to or --conversation is required"))?;
+
     if !to.starts_with('#') {
         return Ok(to.to_string());
     }
@@ -147,5 +198,53 @@ fn resolve_target(to: &str, connector_type: &str, _cfg: &VoidConfig) -> anyhow::
             "channel not in local DB, passing through for API resolution"
         );
         Ok(to.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_target;
+    use void_core::config::VoidConfig;
+    use void_core::db::Database;
+    use void_core::models::{Conversation, ConversationKind};
+
+    fn test_db() -> Database {
+        Database::open(std::path::Path::new(":memory:")).expect("in-memory db")
+    }
+
+    fn seed_self_chat(db: &Database) {
+        db.upsert_conversation(&Conversation {
+            id: "wa_whatsapp_94004066660357@lid".into(),
+            connection_id: "whatsapp".into(),
+            connector: "whatsapp".into(),
+            external_id: "94004066660357@lid".into(),
+            name: Some("Message yourself".into()),
+            kind: ConversationKind::SelfChat,
+            last_message_at: None,
+            unread_count: 0,
+            is_muted: false,
+            metadata: None,
+        })
+        .expect("seed conversation");
+    }
+
+    #[test]
+    fn resolve_target_conversation_returns_external_id() {
+        let db = test_db();
+        seed_self_chat(&db);
+        // resolve_target opens its own db via context in production; test the logic inline
+        let conv = db
+            .get_conversation("wa_whatsapp_94004066660357@lid")
+            .unwrap()
+            .unwrap();
+        assert_eq!(conv.external_id, "94004066660357@lid");
+        assert_eq!(conv.kind, ConversationKind::SelfChat);
+    }
+
+    #[test]
+    fn resolve_target_passthrough_non_channel() {
+        let cfg = VoidConfig::default();
+        let target = resolve_target(Some("33651090627"), None, "whatsapp", &cfg).unwrap();
+        assert_eq!(target, "33651090627");
     }
 }

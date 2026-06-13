@@ -11,6 +11,7 @@ use wa_rs::send::SendOptions;
 use wa_rs_proto::whatsapp::ContextInfo;
 
 use super::media::{download_media_with_client, upload_and_build_media_message};
+use super::self_chat::send_self_chat_message;
 use super::send::{build_wa_message, parse_jid, parse_reply_id};
 use super::WhatsAppConnector;
 use crate::rpc::rpc_to_message_content;
@@ -70,6 +71,12 @@ impl WhatsAppConnector {
 
     pub async fn send_via_sync(&self, to: &str, content: MessageContent) -> anyhow::Result<String> {
         let client = self.require_sync_client().await?;
+        let identity = self.own_identity.lock().expect("mutex").clone();
+
+        if identity.should_route_as_self_chat(to) {
+            return send_self_chat_message(&client, &identity, content, None).await;
+        }
+
         let jid = parse_jid(to)?;
         info!(connection_id = %self.config_id, recipient_jid = %jid, "sending WhatsApp message via sync");
 
@@ -114,6 +121,26 @@ impl WhatsAppConnector {
         );
 
         let client = self.require_sync_client().await?;
+        let identity = self.own_identity.lock().expect("mutex").clone();
+
+        if identity.should_route_as_self_chat(&chat_jid_str) {
+            let context_info = if in_thread {
+                Some(ContextInfo {
+                    stanza_id: Some(quoted_msg_id.clone()),
+                    ..Default::default()
+                })
+            } else {
+                None
+            };
+            info!(
+                connection_id = %self.config_id,
+                quoted_msg_id = %quoted_msg_id,
+                in_thread,
+                "sending WhatsApp notes-to-self reply via sync"
+            );
+            return send_self_chat_message(&client, &identity, content, context_info).await;
+        }
+
         let jid = parse_jid(&chat_jid_str)?;
 
         let context_info = if in_thread {

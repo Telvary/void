@@ -4,6 +4,7 @@ mod connector_trait;
 mod extract;
 mod media;
 mod ops;
+mod self_chat;
 mod send;
 mod sync;
 
@@ -11,6 +12,7 @@ mod sync;
 mod tests;
 
 // Re-export public API for external crates
+pub use self_chat::{OwnIdentity, SELF_CHAT_DISPLAY_NAME};
 pub use send::{normalize_phone, parse_jid};
 
 use std::sync::Arc;
@@ -28,7 +30,21 @@ pub struct WhatsAppConnector {
     config_id: String,
     session_db_path: String,
     client: Arc<Mutex<Option<Arc<Client>>>>,
-    own_jid: Arc<std::sync::Mutex<Option<String>>>,
+    own_identity: Arc<std::sync::Mutex<OwnIdentity>>,
+}
+
+/// Open the WhatsApp session store, restricting it (and its WAL sidecars) to
+/// owner-only. The SQLite DB holds the paired-device session keys, so it must
+/// not be world-readable.
+pub(crate) async fn open_session_store(path: &str) -> anyhow::Result<Arc<SqliteStore>> {
+    let store = SqliteStore::new(path).await?;
+    for suffix in ["", "-wal", "-shm", "-journal"] {
+        let p = std::path::PathBuf::from(format!("{path}{suffix}"));
+        if p.exists() {
+            let _ = void_core::config::restrict_file(&p);
+        }
+    }
+    Ok(Arc::new(store))
 }
 
 impl WhatsAppConnector {
@@ -37,7 +53,7 @@ impl WhatsAppConnector {
             config_id: connection_id.to_string(),
             session_db_path: session_db_path.to_string(),
             client: Arc::new(Mutex::new(None)),
-            own_jid: Arc::new(std::sync::Mutex::new(None)),
+            own_identity: Arc::new(std::sync::Mutex::new(OwnIdentity::default())),
         }
     }
 
@@ -52,7 +68,7 @@ impl WhatsAppConnector {
         }
 
         info!(connection_id = %self.config_id, "starting WhatsApp connection for send");
-        let backend = Arc::new(SqliteStore::new(&self.session_db_path).await?);
+        let backend = open_session_store(&self.session_db_path).await?;
         let client_holder = Arc::clone(&self.client);
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Event>();
 

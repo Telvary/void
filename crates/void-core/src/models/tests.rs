@@ -28,6 +28,7 @@ fn conversation_kind_display() {
     assert_eq!(ConversationKind::Group.to_string(), "group");
     assert_eq!(ConversationKind::Channel.to_string(), "channel");
     assert_eq!(ConversationKind::Thread.to_string(), "thread");
+    assert_eq!(ConversationKind::SelfChat.to_string(), "self");
 }
 
 #[test]

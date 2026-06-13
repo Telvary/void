@@ -9,6 +9,8 @@ pub enum ConversationKind {
     Group,
     Channel,
     Thread,
+    /// WhatsApp "Message yourself" / notes-to-self (addressed via own @lid).
+    SelfChat,
 }
 
 impl std::fmt::Display for ConversationKind {
@@ -18,6 +20,7 @@ impl std::fmt::Display for ConversationKind {
             Self::Group => write!(f, "group"),
             Self::Channel => write!(f, "channel"),
             Self::Thread => write!(f, "thread"),
+            Self::SelfChat => write!(f, "self"),
         }
     }
 }

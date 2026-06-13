@@ -10,6 +10,7 @@ use void_core::db::Database;
 use void_core::models::*;
 
 use super::extract::{extract_media_metadata, extract_media_type, extract_quoted_id, extract_text};
+use super::self_chat::{OwnIdentity, SELF_CHAT_DISPLAY_NAME};
 
 /// Returns true for system/protocol messages that have no user-visible content.
 pub(super) fn is_system_message(msg: &WaMessage) -> bool {
@@ -27,7 +28,7 @@ pub(super) fn is_system_message(msg: &WaMessage) -> bool {
 pub(super) fn handle_history_sync(
     db: &Database,
     connection_id: &str,
-    own_jid: Option<&str>,
+    own_identity: &OwnIdentity,
     history: &HistorySync,
 ) -> anyhow::Result<()> {
     let mut total_stored = 0u64;
@@ -48,14 +49,21 @@ pub(super) fn handle_history_sync(
             .map(|t| t as i64);
 
         let conv_name = conv.name.clone().unwrap_or_else(|| chat_jid.clone());
+        let is_self = own_identity.is_self_chat(chat_jid);
         let conversation = Conversation {
             id: conv_id.clone(),
             connection_id: connection_id.to_string(),
             connector: "whatsapp".into(),
             external_id: chat_jid.clone(),
-            name: Some(conv_name),
+            name: Some(if is_self {
+                SELF_CHAT_DISPLAY_NAME.to_string()
+            } else {
+                conv_name
+            }),
             kind: if is_group {
                 ConversationKind::Group
+            } else if is_self {
+                ConversationKind::SelfChat
             } else {
                 ConversationKind::Dm
             },
@@ -101,8 +109,10 @@ pub(super) fn handle_history_sync(
 
             let from_me = wmi.key.from_me.unwrap_or(false);
             let sender_jid = if from_me {
-                own_jid
-                    .map(str::to_string)
+                own_identity
+                    .lid_jid
+                    .clone()
+                    .or_else(|| own_identity.phone_jid.clone())
                     .or_else(|| {
                         wmi.key
                             .participant
@@ -181,6 +191,7 @@ pub(super) fn handle_message(
     connection_id: &str,
     msg: &WaMessage,
     info: &MessageInfo,
+    own_identity: &OwnIdentity,
 ) -> anyhow::Result<Option<StoredMessageInfo>> {
     if is_system_message(msg) {
         debug!(msg_id = %info.id, "skipping system message");
@@ -197,6 +208,7 @@ pub(super) fn handle_message(
     let chat_jid = info.source.chat.to_string();
     let sender_jid = info.source.sender.to_string();
     let is_group = info.source.is_group;
+    let is_self = own_identity.is_self_chat(&chat_jid);
 
     let conv_id = format!("wa_{connection_id}_{chat_jid}");
     let conversation = Conversation {
@@ -206,6 +218,8 @@ pub(super) fn handle_message(
         external_id: chat_jid.clone(),
         name: if is_group {
             Some(chat_jid.clone())
+        } else if is_self {
+            Some(SELF_CHAT_DISPLAY_NAME.to_string())
         } else {
             Some(if info.push_name.is_empty() {
                 sender_jid.clone()
@@ -215,6 +229,8 @@ pub(super) fn handle_message(
         },
         kind: if is_group {
             ConversationKind::Group
+        } else if is_self {
+            ConversationKind::SelfChat
         } else {
             ConversationKind::Dm
         },

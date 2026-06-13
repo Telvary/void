@@ -5,7 +5,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 use wa_rs::bot::Bot;
 use wa_rs::types::events::Event;
-use wa_rs_sqlite_storage::SqliteStore;
 use wa_rs_tokio_transport::TokioWebSocketTransportFactory;
 use wa_rs_ureq_http::UreqHttpClient;
 
@@ -27,7 +26,7 @@ impl Connector for WhatsAppConnector {
     }
 
     async fn authenticate(&mut self) -> anyhow::Result<()> {
-        let backend = Arc::new(SqliteStore::new(&self.session_db_path).await?);
+        let backend = super::open_session_store(&self.session_db_path).await?;
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Event>();
 
         let mut bot = Bot::builder()
@@ -86,11 +85,11 @@ impl Connector for WhatsAppConnector {
     async fn start_sync(&self, db: Arc<Database>, cancel: CancellationToken) -> anyhow::Result<()> {
         info!(config_id = %self.config_id, "starting WhatsApp sync");
 
-        let backend = Arc::new(SqliteStore::new(&self.session_db_path).await?);
+        let backend = super::open_session_store(&self.session_db_path).await?;
         let db_clone = Arc::clone(&db);
         let config_id = self.config_id.clone();
         let client_holder = Arc::clone(&self.client);
-        let own_jid_holder = Arc::clone(&self.own_jid);
+        let own_identity_holder = Arc::clone(&self.own_identity);
 
         let mut bot = Bot::builder()
             .with_backend(backend)
@@ -100,12 +99,12 @@ impl Connector for WhatsAppConnector {
                 let db = Arc::clone(&db_clone);
                 let config_id = config_id.clone();
                 let client_holder = Arc::clone(&client_holder);
-                let own_jid_holder = Arc::clone(&own_jid_holder);
+                let own_identity_holder = Arc::clone(&own_identity_holder);
                 async move {
                     {
                         let mut holder = client_holder.lock().await;
                         if holder.is_none() {
-                            *holder = Some(client);
+                            *holder = Some(Arc::clone(&client));
                         }
                     }
 
@@ -116,17 +115,22 @@ impl Connector for WhatsAppConnector {
                         }
                         Event::Connected(_) => {
                             info!("WhatsApp connected");
+                            let pn = client.get_pn().await;
+                            let lid = client.get_lid().await;
+                            own_identity_holder
+                                .lock()
+                                .expect("mutex")
+                                .update_from_connected(pn, lid);
                         }
                         Event::Message(msg, info) => {
                             if info.source.is_from_me {
-                                let mut jid_lock = own_jid_holder.lock().expect("mutex");
-                                if jid_lock.is_none() {
-                                    let jid = info.source.sender.to_string();
-                                    info!(own_jid = %jid, "discovered own WhatsApp JID");
-                                    *jid_lock = Some(jid);
-                                }
+                                own_identity_holder
+                                    .lock()
+                                    .expect("mutex")
+                                    .update_from_message(&info.source);
                             }
-                            match handle_message(&db, &config_id, &msg, &info) {
+                            let own_identity = own_identity_holder.lock().expect("mutex").clone();
+                            match handle_message(&db, &config_id, &msg, &info, &own_identity) {
                                 Ok(Some(stored)) => {
                                     let sender = if info.source.is_from_me {
                                         "me".to_string()
@@ -168,7 +172,7 @@ impl Connector for WhatsAppConnector {
                             );
                         }
                         Event::HistorySync(history) => {
-                            let own_jid = own_jid_holder.lock().expect("mutex").clone();
+                            let own_identity = own_identity_holder.lock().expect("mutex").clone();
                             let sync_type = history.sync_type;
                             let conv_count = history.conversations.len();
                             let msg_count: usize =
@@ -178,7 +182,7 @@ impl Connector for WhatsAppConnector {
                                 config_id, sync_type, conv_count, msg_count
                             );
                             if let Err(e) =
-                                handle_history_sync(&db, &config_id, own_jid.as_deref(), &history)
+                                handle_history_sync(&db, &config_id, &own_identity, &history)
                             {
                                 warn!("Failed to process history sync: {e}");
                             }

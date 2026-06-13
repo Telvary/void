@@ -4524,6 +4524,8 @@ dependencies = [
  "uuid",
  "void-core",
  "wa-rs",
+ "wa-rs-binary",
+ "wa-rs-core",
  "wa-rs-proto",
  "wa-rs-sqlite-storage",
  "wa-rs-tokio-transport",

@@ -10,6 +10,7 @@ pub(crate) fn parse_kind(s: &str) -> ConversationKind {
         "group" => ConversationKind::Group,
         "channel" => ConversationKind::Channel,
         "thread" => ConversationKind::Thread,
+        "self" => ConversationKind::SelfChat,
         _ => ConversationKind::Dm,
     }
 }

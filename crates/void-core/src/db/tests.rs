@@ -707,6 +707,23 @@ fn list_channels_basic() {
 }
 
 #[test]
+fn self_chat_conversation_kind_round_trip() {
+    let db = test_db();
+    let mut conv = make_conversation("c-self", "test-whatsapp", "94004066660357@lid");
+    conv.connector = "whatsapp".into();
+    conv.kind = ConversationKind::SelfChat;
+    conv.name = Some("Message yourself".into());
+    db.upsert_conversation(&conv).unwrap();
+
+    let loaded = db
+        .get_conversation("c-self")
+        .unwrap()
+        .expect("conversation");
+    assert_eq!(loaded.kind, ConversationKind::SelfChat);
+    assert_eq!(loaded.name.as_deref(), Some("Message yourself"));
+}
+
+#[test]
 fn list_channels_search() {
     let db = test_db();
     let mut c1 = make_conversation("c1", "test-slack", "G123");

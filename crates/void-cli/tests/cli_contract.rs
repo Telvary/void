@@ -111,14 +111,28 @@ fn version_exits_zero() {
 // --- Required-arg violations ---
 
 #[test]
-fn send_without_args_fails_with_message() {
-    // clap-level failure: missing required --to/--via/--message. No IO performed.
+fn send_without_recipient_fails_with_message() {
+    void()
+        .arg("send")
+        .arg("--via")
+        .arg("whatsapp")
+        .arg("--message")
+        .arg("hi")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("required"))
+        .stderr(predicate::str::contains("--to"))
+        .stderr(predicate::str::contains("--conversation"));
+}
+
+#[test]
+fn send_without_via_fails_with_message() {
+    // clap-level failure: missing required --via/--message. No IO performed.
     void()
         .arg("send")
         .assert()
         .failure()
         .stderr(predicate::str::contains("required arguments"))
-        .stderr(predicate::str::contains("--to"))
         .stderr(predicate::str::contains("--via"));
 }
 
