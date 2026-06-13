@@ -54,7 +54,7 @@ pub fn compose_rfc2822_ex(
     let body_wrapped = body_encoded
         .as_bytes()
         .chunks(76)
-        .map(|c| unsafe { std::str::from_utf8_unchecked(c) })
+        .map(|c| std::str::from_utf8(c).expect("base64 output is ASCII"))
         .collect::<Vec<_>>()
         .join("\r\n");
 
@@ -77,10 +77,8 @@ pub fn compose_rfc2822_with_attachment(
     let wrapped = encoded
         .as_bytes()
         .chunks(76)
-        .map(|c| {
-            // SAFETY: STANDARD base64 alphabet is ASCII; each chunk is valid UTF-8.
-            unsafe { std::str::from_utf8_unchecked(c) }
-        })
+        // STANDARD base64 alphabet is ASCII, so each chunk is valid UTF-8.
+        .map(|c| std::str::from_utf8(c).expect("base64 output is ASCII"))
         .collect::<Vec<_>>()
         .join("\r\n");
 
@@ -114,7 +112,7 @@ pub fn compose_rfc2822_with_attachment(
     let body_wrapped = body_encoded
         .as_bytes()
         .chunks(76)
-        .map(|c| unsafe { std::str::from_utf8_unchecked(c) })
+        .map(|c| std::str::from_utf8(c).expect("base64 output is ASCII"))
         .collect::<Vec<_>>()
         .join("\r\n");
 

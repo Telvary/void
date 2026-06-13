@@ -463,11 +463,8 @@ fn refresh_remote_database(
 
 fn remote_daemon_running(ssh: &SshTarget, remote_store_path: &str) -> bool {
     let lock_path = format!("{remote_store_path}/LOCK");
-    let cmd = if lock_path.starts_with('~') {
-        format!("test -f {lock_path} && echo running || echo stopped")
-    } else {
-        format!("test -f '{lock_path}' && echo running || echo stopped")
-    };
+    let quoted = shell_escape_remote_path(&lock_path);
+    let cmd = format!("test -f {quoted} && echo running || echo stopped");
     ssh.run_remote(&cmd)
         .ok()
         .and_then(|output| String::from_utf8(output.stdout).ok())
@@ -486,6 +483,19 @@ fn shell_escape(arg: &str) -> String {
         return arg.to_string();
     }
     format!("'{}'", arg.replace('\'', "'\\''"))
+}
+
+/// Quote a remote path for the login shell while preserving a leading `~/` so
+/// the remote `$HOME` still expands. The remainder is escaped, closing the
+/// injection gap where a config-sourced tilde path was passed unquoted.
+fn shell_escape_remote_path(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix("~/") {
+        format!("~/{}", shell_escape(rest))
+    } else if path == "~" {
+        "~".to_string()
+    } else {
+        shell_escape(path)
+    }
 }
 
 #[cfg(test)]

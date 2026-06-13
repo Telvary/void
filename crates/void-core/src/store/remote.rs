@@ -327,14 +327,17 @@ fn shell_escape_path(path: &str) -> String {
     }
 }
 
-/// Format a remote path for scp. Tilde paths must not be single-quoted or `~` won't expand.
+/// Format a remote path for scp. The remote login shell parses this string, so
+/// every metacharacter must be quoted to prevent command injection. A leading
+/// `~/` is kept unquoted so `$HOME` still expands; only the remainder (which is
+/// where untrusted/config-sourced data lives) is escaped.
 fn format_remote_scp_path(remote_path: &str) -> String {
-    if remote_path.starts_with('~') {
-        remote_path.to_string()
-    } else if remote_path.contains(' ') || remote_path.contains('\'') {
-        format!("'{}'", remote_path.replace('\'', "'\\''"))
+    if let Some(rest) = remote_path.strip_prefix("~/") {
+        format!("~/{}", shell_escape_path(rest))
+    } else if remote_path == "~" {
+        "~".to_string()
     } else {
-        remote_path.to_string()
+        shell_escape_path(remote_path)
     }
 }
 

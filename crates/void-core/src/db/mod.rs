@@ -26,13 +26,13 @@ pub use schema::SCHEMA_VERSION;
 pub use search::fts5_escape;
 
 pub struct Database {
+    // `Mutex<Connection>` is already `Send + Sync` (rusqlite's `Connection` is
+    // `Send`), so `Database` derives both auto-traits safely — no `unsafe impl`
+    // needed. Keeping it auto-derived means the compiler re-checks thread safety
+    // if a non-`Sync` field is ever added.
     conn: Mutex<Connection>,
     hook_runner: std::sync::RwLock<Option<std::sync::Arc<crate::hooks::HookRunner>>>,
 }
-
-// SAFETY: All Connection access is protected by the Mutex.
-unsafe impl Send for Database {}
-unsafe impl Sync for Database {}
 
 impl Database {
     pub fn open(path: &Path) -> Result<Self, DbError> {

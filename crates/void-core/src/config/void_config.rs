@@ -216,11 +216,9 @@ impl VoidConfig {
     }
 
     pub fn save(&self, path: &Path) -> Result<(), ConfigError> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let content = toml::to_string_pretty(self)?;
-        std::fs::write(path, content)?;
+        // Holds plaintext Slack/LinkedIn/Telegram secrets — keep it owner-only.
+        super::write_secure(path, content)?;
         Ok(())
     }
 

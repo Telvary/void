@@ -11,11 +11,31 @@ const GMAIL_SCOPES: &str = "https://www.googleapis.com/auth/gmail.readonly \
                             https://www.googleapis.com/auth/gmail.modify";
 
 /// Google OAuth2 token state, cached to disk.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct TokenCache {
     pub access_token: String,
     pub refresh_token: Option<String>,
     pub expires_at: Option<i64>,
+}
+
+// Manual `Debug` so the access/refresh tokens are never dumped by `{:?}`.
+impl std::fmt::Debug for TokenCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TokenCache")
+            .field(
+                "access_token",
+                &void_core::config::redact_token(&self.access_token),
+            )
+            .field(
+                "refresh_token",
+                &self
+                    .refresh_token
+                    .as_deref()
+                    .map(void_core::config::redact_token),
+            )
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
 }
 
 /// Google OAuth2 client credentials (from downloaded JSON).
@@ -24,12 +44,27 @@ pub struct ClientCredentials {
     pub installed: Option<InstalledCredentials>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct InstalledCredentials {
     pub client_id: String,
     pub client_secret: String,
     pub auth_uri: String,
     pub token_uri: String,
+}
+
+// Manual `Debug` so the OAuth `client_secret` is never dumped by `{:?}`.
+impl std::fmt::Debug for InstalledCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InstalledCredentials")
+            .field("client_id", &self.client_id)
+            .field(
+                "client_secret",
+                &void_core::config::redact_token(&self.client_secret),
+            )
+            .field("auth_uri", &self.auth_uri)
+            .field("token_uri", &self.token_uri)
+            .finish()
+    }
 }
 
 impl TokenCache {
@@ -46,11 +81,9 @@ impl TokenCache {
 
     pub fn save(&self, path: &Path) -> Result<(), GmailError> {
         debug!(path = %path.display(), "saving token cache");
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let content = serde_json::to_string_pretty(self).map_err(GmailError::from)?;
-        std::fs::write(path, content)?;
+        // Holds OAuth access/refresh tokens — keep it owner-only.
+        void_core::config::write_secure(path, content)?;
         Ok(())
     }
 }

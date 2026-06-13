@@ -17,7 +17,7 @@ You can expect an acknowledgment within a few days. Please include reproduction 
 Void handles sensitive material by design. What you should know:
 
 - **Everything is local.** Messages, contacts, and events are stored in a SQLite database under your store directory (default `~/.local/share/void`). Nothing is sent to any third-party service operated by this project — void only talks to the APIs of the services you connect (and Unipile for LinkedIn).
-- **Credentials at rest.** OAuth tokens, WhatsApp/Telegram session files, and Slack tokens live unencrypted in the store directory, protected by filesystem permissions only. Anyone with read access to that directory can act as you. Treat backups of it accordingly.
+- **Credentials at rest.** OAuth tokens, WhatsApp/Telegram session files, and Slack tokens live unencrypted in the store directory, protected by filesystem permissions only. On Unix, void writes these files `0600` (owner-only) and their parent directory `0700`, but anyone who can still read them (e.g. via a too-permissive backup or a shared/`root` account) can act as you. Treat backups of it accordingly.
 - **Hooks execute an external agent CLI** (e.g. `claude`) with prompts that may contain message content. Review hook prompts and the agent's tool permissions (`extra_args`) before enabling a hook.
 - **Remote store mode** transports data over your own SSH connection; no additional service is introduced.
 

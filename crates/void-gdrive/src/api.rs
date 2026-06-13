@@ -349,15 +349,19 @@ impl DriveApiClient {
         let dest = if let Some(path) = output {
             path.to_path_buf()
         } else {
-            let name = &result.file_name;
+            // `file_name` comes straight from the Drive API and is fully
+            // attacker-controlled (anyone who shares a file picks its name).
+            // Reduce it to a single safe component so a name like
+            // `../../../.zshrc` cannot escape the working directory.
+            let name = sanitize_download_name(&result.file_name);
             if let Some(fmt) = &result.export_format {
-                let stem = Path::new(name)
+                let stem = Path::new(&name)
                     .file_stem()
                     .and_then(|s| s.to_str())
-                    .unwrap_or(name);
+                    .unwrap_or(&name);
                 std::path::PathBuf::from(format!("{}.{}", stem, fmt.extension()))
             } else {
-                std::path::PathBuf::from(name)
+                std::path::PathBuf::from(&name)
             }
         };
 
@@ -368,6 +372,23 @@ impl DriveApiClient {
         }
         std::fs::write(&dest, &result.data)?;
         Ok(dest)
+    }
+}
+
+/// Reduce an untrusted remote file name to a single safe path component.
+///
+/// Keeps only the final path segment and drops control characters, so
+/// traversal sequences (`../`), absolute paths, and embedded separators cannot
+/// redirect the write outside the destination directory. Falls back to
+/// `download.bin` when nothing usable remains.
+fn sanitize_download_name(name: &str) -> String {
+    let base = name.rsplit(['/', '\\']).next().unwrap_or(name).trim();
+    let cleaned: String = base.chars().filter(|c| !c.is_control()).collect();
+    let cleaned = cleaned.trim();
+    if cleaned.is_empty() || cleaned == "." || cleaned == ".." {
+        "download.bin".to_string()
+    } else {
+        cleaned.to_string()
     }
 }
 
@@ -777,6 +798,32 @@ mod tests {
         assert_eq!(dest, nested);
         assert_eq!(std::fs::read(&dest).unwrap(), b"x,y\n1,2");
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn sanitize_download_name_strips_traversal() {
+        assert_eq!(sanitize_download_name("../../../.zshrc"), ".zshrc");
+        assert_eq!(sanitize_download_name("/etc/passwd"), "passwd");
+        assert_eq!(sanitize_download_name("a/b/c.txt"), "c.txt");
+        assert_eq!(sanitize_download_name("..\\..\\win.ini"), "win.ini");
+        assert_eq!(sanitize_download_name(".."), "download.bin");
+        assert_eq!(sanitize_download_name(""), "download.bin");
+        assert_eq!(sanitize_download_name("evil\u{0}name"), "evilname");
+        assert_eq!(sanitize_download_name("report.pdf"), "report.pdf");
+    }
+
+    #[test]
+    fn save_to_disk_auto_name_cannot_escape_cwd() {
+        let result = DownloadResult {
+            file_name: "../../../../tmp/void-traversal-probe".to_string(),
+            mime_type: "application/octet-stream".to_string(),
+            data: b"x".to_vec(),
+            export_format: None,
+        };
+        let dest = DriveApiClient::save_to_disk(&result, None).unwrap();
+        // Reduced to a single component — no parent, stays in cwd.
+        assert_eq!(dest, std::path::PathBuf::from("void-traversal-probe"));
+        std::fs::remove_file(&dest).ok();
     }
 
     #[tokio::test]

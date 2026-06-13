@@ -103,7 +103,7 @@ struct RawConnectionConfig {
     ignore_conversations: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ConnectionSettings {
     Slack {
@@ -142,4 +142,66 @@ pub enum ConnectionSettings {
         dsn: String,
         account_id: String,
     },
+}
+
+// Manual `Debug` so secret-bearing fields are redacted: a stray `debug!(?config)`
+// or `{:?}` must never dump live tokens. `ConnectionConfig`/`VoidConfig` derive
+// `Debug` but route through this impl, so they are covered transitively.
+impl std::fmt::Debug for ConnectionSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use super::redact_token;
+        match self {
+            Self::Slack {
+                app_token,
+                user_token,
+                app_id,
+                config_refresh_token,
+            } => f
+                .debug_struct("Slack")
+                .field("app_token", &redact_token(app_token))
+                .field("user_token", &redact_token(user_token))
+                .field("app_id", app_id)
+                .field(
+                    "config_refresh_token",
+                    &config_refresh_token.as_deref().map(redact_token),
+                )
+                .finish(),
+            Self::Gmail { credentials_file } => f
+                .debug_struct("Gmail")
+                .field("credentials_file", credentials_file)
+                .finish(),
+            Self::Calendar {
+                credentials_file,
+                calendar_ids,
+            } => f
+                .debug_struct("Calendar")
+                .field("credentials_file", credentials_file)
+                .field("calendar_ids", calendar_ids)
+                .finish(),
+            Self::WhatsApp {} => f.debug_struct("WhatsApp").finish(),
+            Self::Telegram { api_id, api_hash } => f
+                .debug_struct("Telegram")
+                .field("api_id", api_id)
+                .field("api_hash", &api_hash.as_deref().map(redact_token))
+                .finish(),
+            Self::HackerNews {
+                keywords,
+                min_score,
+            } => f
+                .debug_struct("HackerNews")
+                .field("keywords", keywords)
+                .field("min_score", min_score)
+                .finish(),
+            Self::LinkedIn {
+                api_key,
+                dsn,
+                account_id,
+            } => f
+                .debug_struct("LinkedIn")
+                .field("api_key", &redact_token(api_key))
+                .field("dsn", dsn)
+                .field("account_id", account_id)
+                .finish(),
+        }
+    }
 }

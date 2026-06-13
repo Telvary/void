@@ -111,28 +111,19 @@ struct ChannelData {
     pts: i32,
 }
 
-// PeerAuth is opaque — round-trip via raw bytes
+// PeerAuth wraps an i64 access hash. Round-trip via its public accessors and a
+// fixed little-endian encoding: no `unsafe`, no dependency on the type's memory
+// layout, and stable across architectures. (Little-endian matches the previous
+// raw-bytes format on LE hosts, so existing session files keep working.)
 
 fn auth_to_bytes(auth: &PeerAuth) -> Vec<u8> {
-    let size = std::mem::size_of::<PeerAuth>();
-    let ptr = auth as *const PeerAuth as *const u8;
-    unsafe { std::slice::from_raw_parts(ptr, size) }.to_vec()
+    auth.hash().to_le_bytes().to_vec()
 }
 
 fn auth_from_bytes(bytes: &[u8]) -> Option<PeerAuth> {
-    if bytes.len() == std::mem::size_of::<PeerAuth>() {
-        let mut auth = std::mem::MaybeUninit::<PeerAuth>::uninit();
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                bytes.as_ptr(),
-                auth.as_mut_ptr() as *mut u8,
-                bytes.len(),
-            );
-            Some(auth.assume_init())
-        }
-    } else {
-        None
-    }
+    <[u8; 8]>::try_from(bytes)
+        .ok()
+        .map(|b| PeerAuth::from_hash(i64::from_le_bytes(b)))
 }
 
 fn opt_auth_to_bytes(auth: Option<PeerAuth>) -> Option<Vec<u8>> {
@@ -268,9 +259,9 @@ impl JsonFileSession {
         let data = self.data.read().expect("session lock poisoned");
         match serde_json::to_string(&*data) {
             Ok(json) => {
-                let tmp = self.path.with_extension("json.tmp");
-                if std::fs::write(&tmp, &json).is_ok() {
-                    let _ = std::fs::rename(&tmp, &self.path);
+                // Holds Telegram auth keys — keep it owner-only.
+                if let Err(e) = void_core::config::write_secure(&self.path, json) {
+                    warn!(error = %e, "failed to persist session");
                 }
             }
             Err(e) => {
