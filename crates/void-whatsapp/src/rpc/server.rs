@@ -136,7 +136,10 @@ async fn handle_connection(
     stream: RpcStream,
     handlers: Arc<RwLock<HashMap<String, Arc<WhatsAppConnector>>>>,
 ) -> anyhow::Result<()> {
-    let (reader, mut writer) = stream.into_split();
+    // `tokio::io::split` works for any AsyncRead+AsyncWrite, including the
+    // Windows `NamedPipeServer` (which has no `into_split`). The halves are used
+    // in this same task, so the generic split is sufficient.
+    let (reader, mut writer) = tokio::io::split(stream);
     let mut lines = BufReader::new(reader).lines();
     let line = match lines.next_line().await? {
         Some(line) if !line.trim().is_empty() => line,

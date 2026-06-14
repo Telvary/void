@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.10.0] - 2026-06-14
+## [0.10.1] - 2026-06-14
+
+> Supersedes 0.10.0, which was tagged but never published (its Windows release build failed).
 
 ### Added
 
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **WhatsApp** — Messages are now stored under the config connection id instead of the account JID, so history stays attached to the right connection.
+- **WhatsApp** — RPC server now builds on Windows (uses `tokio::io::split` for named pipes instead of the Unix-only `into_split`).
 - **Docs** — Corrected the `calendar respond --status` values (`accepted|declined|tentative`) and added the missing Hacker News command reference.
 
 ### Security
