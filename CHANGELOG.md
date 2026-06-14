@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **WhatsApp (Windows)** — The named-pipe RPC server failed after the first request (`first_pipe_instance` was set on every pipe instance) and had unused-import build warnings under `-D warnings`. The Windows sync-daemon send/reply path now works across multiple requests.
+
 ## [0.10.1] - 2026-06-14
 
 > Supersedes 0.10.0, which was tagged but never published (its Windows release build failed).
