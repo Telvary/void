@@ -56,7 +56,7 @@ Most read commands accept:
 
 | Command | Description |
 |---------|-------------|
-| `void send --via <connector> --to <recipient> --message <text>` | Send a new message. `--connection <id>` to pick an account, `--subject` (email), `--file <path>` to attach, `--at <time>` to schedule delivery (Slack only) |
+| `void send --via <connector> --to <recipient> --message <text>` | Send a new message. Use `--conversation <id>` instead of `--to` to target an existing void conversation (e.g. WhatsApp notes-to-self / "Message yourself"). `--connection <id>` to pick an account, `--subject` (email), `--file <path>` to attach, `--at <time>` to schedule delivery (Slack only) |
 | `void reply <id> --message <text>` | Reply to a message. `--in-thread` for threaded replies, `--file` to attach, `--at` to schedule (Slack only) |
 | `void forward <id> --to <recipient>` | Forward a message. `--comment <text>` to add a note |
 | `void archive <ids...>` | Archive one or more messages (mark as processed). `--before <date>` and `--connector <type>` for bulk archiving |
@@ -74,7 +74,7 @@ Times are ISO 8601: `2026-03-31T17:00:00`, `2026-03-31 17:00`, or `2026-03-31` (
 | `void calendar week` | This week's events |
 | `void calendar create --title <t> --start <time>` | Create an event. `--end` (default: start + 30 min), `--description`, `--attendees`, `--meet` (attach a Google Meet link) |
 | `void calendar search <query>` | Search events. `--from`, `--to` |
-| `void calendar respond <id> --status <accept\|decline\|tentative>` | Respond to an invite. `--comment`, `--email` |
+| `void calendar respond <id> --status <accepted\|declined\|tentative>` | Respond to an invite. `--comment`, `--email` |
 | `void calendar update <id>` | Update an event: `--title`, `--description`, `--start`, `--end` |
 | `void calendar delete <id>` | Delete an event |
 | `void calendar availability --attendees <emails> --from <t> --to <t>` | Check attendee availability (FreeBusy) |
@@ -137,6 +137,19 @@ All Slack subcommands accept `--connection <id>`.
 | `void drive download <url-or-id>` | Download a file from Drive/Docs/Sheets/Slides. `-o/--output <path>`, `-f/--format <fmt>` (export format), `--stdout` to pipe content |
 | `void drive info <url-or-id>` | Show file metadata |
 | `void drive auth` | Authenticate with Google Drive |
+
+## Hacker News
+
+Tune the watched-keywords feed without editing `config.toml`. See [Connector setup](connectors.md#hacker-news).
+
+| Command | Description |
+|---------|-------------|
+| `void hn config` | Show current keywords and minimum score |
+| `void hn keywords list` | List watched keywords |
+| `void hn keywords add <csv>` | Add one or more keywords (comma-separated) |
+| `void hn keywords remove <csv>` | Remove one or more keywords (comma-separated) |
+| `void hn keywords set <csv>` | Replace all keywords (empty to clear) |
+| `void hn min-score <N>` | Set the minimum score threshold for stories |
 
 ## Hooks
 

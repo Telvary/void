@@ -104,7 +104,7 @@ void calendar week                  # this week
 void calendar --day tomorrow
 void calendar create --title "1:1 Alice" --start "2026-06-16T14:00" --meet   # ends +30min by default
 void calendar availability --attendees alice@x.com,bob@x.com --from 2026-06-15T09:00 --to 2026-06-15T18:00
-void calendar respond <id> --status accept
+void calendar respond <id> --status accepted
 ```
 
 ### Google Drive
