@@ -206,9 +206,21 @@ fn parse_reply_id_error_message_includes_input() {
 }
 
 #[test]
+fn message_content_subject_returns_email_subject() {
+    let with_subject = MessageContent::Text {
+        body: "body".into(),
+        subject: Some("Re: test".into()),
+    };
+    assert_eq!(with_subject.subject(), Some("Re: test"));
+
+    let without = MessageContent::from_text("body");
+    assert_eq!(without.subject(), None);
+}
+
+#[test]
 fn message_content_text_returns_body() {
-    assert_eq!(MessageContent::Text("hello".into()).text(), "hello");
-    assert_eq!(MessageContent::Text(String::new()).text(), "");
+    assert_eq!(MessageContent::from_text("hello").text(), "hello");
+    assert_eq!(MessageContent::from_text(String::new()).text(), "");
 }
 
 #[test]
@@ -217,6 +229,7 @@ fn message_content_text_returns_caption_for_file() {
         path: "/tmp/x.png".into(),
         caption: Some("a photo".into()),
         mime_type: Some("image/png".into()),
+        subject: None,
     };
     assert_eq!(with_caption.text(), "a photo");
 
@@ -224,6 +237,7 @@ fn message_content_text_returns_caption_for_file() {
         path: "/tmp/x.png".into(),
         caption: None,
         mime_type: None,
+        subject: None,
     };
     assert_eq!(no_caption.text(), "");
 }

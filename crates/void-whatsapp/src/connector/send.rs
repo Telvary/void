@@ -12,11 +12,11 @@ pub(crate) fn build_wa_message(
     context_info: Option<ContextInfo>,
 ) -> anyhow::Result<WaMessage> {
     match content {
-        MessageContent::Text(text) => {
+        MessageContent::Text { body, .. } => {
             if let Some(ctx) = context_info {
                 Ok(WaMessage {
                     extended_text_message: Some(Box::new(ExtendedTextMessage {
-                        text: Some(text.clone()),
+                        text: Some(body.clone()),
                         context_info: Some(Box::new(ctx)),
                         ..Default::default()
                     })),
@@ -24,7 +24,7 @@ pub(crate) fn build_wa_message(
                 })
             } else {
                 Ok(WaMessage {
-                    conversation: Some(text.clone()),
+                    conversation: Some(body.clone()),
                     ..Default::default()
                 })
             }

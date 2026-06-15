@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-06-15
+
 ### Fixed
 
+- **Gmail** — `void send --via gmail --subject` was accepted by the CLI but ignored; new emails were always sent with `(no subject)`. The subject is now passed through to the Gmail API.
 - **WhatsApp (Windows)** — The named-pipe RPC server failed after the first request (`first_pipe_instance` was set on every pipe instance) and had unused-import build warnings under `-D warnings`. The Windows sync-daemon send/reply path now works across multiple requests.
 
 ## [0.10.1] - 2026-06-14

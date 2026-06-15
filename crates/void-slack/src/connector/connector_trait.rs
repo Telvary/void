@@ -142,7 +142,7 @@ impl Connector for SlackConnector {
                 self.upload_file(&channel, path_str, caption.as_deref(), None)
                     .await
             }
-            MessageContent::Text(t) => {
+            MessageContent::Text { body, .. } => {
                 let channel = if to.contains(',') {
                     let users: Vec<&str> = to.split(',').map(|s| s.trim()).collect();
                     let channel_id = self.open_conversation(&users).await?;
@@ -151,7 +151,7 @@ impl Connector for SlackConnector {
                 } else {
                     to.to_string()
                 };
-                let resp = self.api.chat_post_message(&channel, t, None).await?;
+                let resp = self.api.chat_post_message(&channel, body, None).await?;
                 Ok(resp.ts.unwrap_or_default())
             }
         }
@@ -178,9 +178,12 @@ impl Connector for SlackConnector {
                 self.upload_file(channel_id, path_str, caption.as_deref(), thread_ts)
                     .await
             }
-            MessageContent::Text(t) => {
+            MessageContent::Text { body, .. } => {
                 let thread_ts = if in_thread { Some(ts) } else { None };
-                let resp = self.api.chat_post_message(channel_id, t, thread_ts).await?;
+                let resp = self
+                    .api
+                    .chat_post_message(channel_id, body, thread_ts)
+                    .await?;
                 let reply_ts = resp.ts.clone().unwrap_or_default();
                 debug!(connection_id = %self.connection_id, ts = %reply_ts, "Slack reply sent");
                 Ok(reply_ts)

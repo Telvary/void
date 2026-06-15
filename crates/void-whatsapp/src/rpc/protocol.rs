@@ -113,11 +113,12 @@ impl RpcResponse {
 
 pub fn message_content_to_rpc(content: &MessageContent) -> RpcContent {
     match content {
-        MessageContent::Text(text) => RpcContent::Text { text: text.clone() },
+        MessageContent::Text { body, .. } => RpcContent::Text { text: body.clone() },
         MessageContent::File {
             path,
             caption,
             mime_type,
+            ..
         } => RpcContent::File {
             path: path.to_string_lossy().into_owned(),
             caption: caption.clone(),
@@ -128,7 +129,7 @@ pub fn message_content_to_rpc(content: &MessageContent) -> RpcContent {
 
 pub fn rpc_to_message_content(content: RpcContent) -> MessageContent {
     match content {
-        RpcContent::Text { text } => MessageContent::Text(text),
+        RpcContent::Text { text } => MessageContent::from_text(text),
         RpcContent::File {
             path,
             caption,
@@ -137,6 +138,7 @@ pub fn rpc_to_message_content(content: RpcContent) -> MessageContent {
             path: path.into(),
             caption,
             mime_type,
+            subject: None,
         },
     }
 }
@@ -231,9 +233,9 @@ mod tests {
 
     #[test]
     fn message_content_round_trip_text() {
-        let original = MessageContent::Text("hello world".into());
+        let original = MessageContent::from_text("hello world");
         match rpc_to_message_content(message_content_to_rpc(&original)) {
-            MessageContent::Text(t) => assert_eq!(t, "hello world"),
+            MessageContent::Text { body, .. } => assert_eq!(body, "hello world"),
             other => panic!("expected text, got {other:?}"),
         }
     }
@@ -244,12 +246,14 @@ mod tests {
             path: "/tmp/pic.jpg".into(),
             caption: Some("look".into()),
             mime_type: Some("image/jpeg".into()),
+            subject: None,
         };
         match rpc_to_message_content(message_content_to_rpc(&original)) {
             MessageContent::File {
                 path,
                 caption,
                 mime_type,
+                ..
             } => {
                 assert_eq!(path, std::path::PathBuf::from("/tmp/pic.jpg"));
                 assert_eq!(caption.as_deref(), Some("look"));
@@ -265,12 +269,14 @@ mod tests {
             path: "/tmp/doc.pdf".into(),
             caption: None,
             mime_type: None,
+            subject: None,
         };
         match rpc_to_message_content(message_content_to_rpc(&original)) {
             MessageContent::File {
                 path,
                 caption,
                 mime_type,
+                ..
             } => {
                 assert_eq!(path, std::path::PathBuf::from("/tmp/doc.pdf"));
                 assert!(caption.is_none());

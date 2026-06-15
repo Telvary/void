@@ -140,6 +140,7 @@ impl Connector for TelegramConnector {
                 path,
                 caption,
                 mime_type,
+                ..
             } => {
                 media::upload_and_build_media_message(
                     &client,
@@ -198,6 +199,7 @@ impl Connector for TelegramConnector {
                 path,
                 caption,
                 mime_type,
+                ..
             } => {
                 media::upload_and_build_media_message(
                     &client,

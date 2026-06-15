@@ -133,19 +133,20 @@ impl Connector for GmailConnector {
 
     async fn send_message(&self, to: &str, content: MessageContent) -> anyhow::Result<String> {
         let raw = match &content {
-            MessageContent::Text(t) => {
-                let subject = "(no subject)";
+            MessageContent::Text { body, subject, .. } => {
+                let subject = subject.as_deref().unwrap_or("(no subject)");
                 info!(recipient = %to, subject = %subject, "sending Gmail message");
-                compose_rfc2822(to, subject, t, None, None)
+                compose_rfc2822(to, subject, body, None, None)
             }
             MessageContent::File {
                 path,
                 caption,
                 mime_type,
+                subject,
             } => {
-                let subject = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
+                let subject = subject
+                    .as_deref()
+                    .or_else(|| path.file_name().and_then(|n| n.to_str()))
                     .unwrap_or("(attachment)");
                 let body = caption.clone().unwrap_or_default();
                 info!(recipient = %to, subject = %subject, "sending Gmail message with attachment");
@@ -216,13 +217,14 @@ impl Connector for GmailConnector {
         let references = in_reply_to.as_deref();
 
         let raw = match &content {
-            MessageContent::Text(t) => {
-                compose_rfc2822(&to, &subject, t, in_reply_to.as_deref(), references)
+            MessageContent::Text { body, .. } => {
+                compose_rfc2822(&to, &subject, body, in_reply_to.as_deref(), references)
             }
             MessageContent::File {
                 path,
                 caption,
                 mime_type,
+                ..
             } => {
                 let body = caption.clone().unwrap_or_default();
                 compose_rfc2822_with_attachment(

@@ -86,6 +86,7 @@ impl WhatsAppConnector {
                 path,
                 caption,
                 mime_type,
+                ..
             } => {
                 upload_and_build_media_message(
                     &client,
@@ -158,6 +159,7 @@ impl WhatsAppConnector {
                 path,
                 caption,
                 mime_type,
+                ..
             } => {
                 upload_and_build_media_message(
                     &client,

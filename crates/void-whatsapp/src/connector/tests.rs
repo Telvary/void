@@ -229,7 +229,7 @@ fn extract_media_type_none_for_text() {
 
 #[test]
 fn build_text_message_simple() {
-    let content = MessageContent::Text("test".into());
+    let content = MessageContent::from_text("test");
     let msg = build_wa_message(&content, None).unwrap();
     assert_eq!(msg.conversation, Some("test".into()));
     assert!(msg.extended_text_message.is_none());
@@ -237,7 +237,7 @@ fn build_text_message_simple() {
 
 #[test]
 fn build_quoted_message() {
-    let content = MessageContent::Text("reply text".into());
+    let content = MessageContent::from_text("reply text");
     let ctx = ContextInfo {
         stanza_id: Some("orig_msg_123".into()),
         ..Default::default()
@@ -715,13 +715,14 @@ fn build_wa_message_file_content_is_error() {
         path: std::env::temp_dir().join("z.png"),
         caption: Some("cap".into()),
         mime_type: Some("image/png".into()),
+        subject: None,
     };
     assert!(build_wa_message(&content, None).is_err());
 }
 
 #[test]
 fn build_wa_message_text_with_context_uses_extended() {
-    let content = MessageContent::Text("hello".into());
+    let content = MessageContent::from_text("hello");
     let ctx = ContextInfo {
         stanza_id: Some("q1".into()),
         ..Default::default()

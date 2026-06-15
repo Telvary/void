@@ -5,21 +5,43 @@ use super::serde_ts::epoch_iso8601_opt;
 
 #[derive(Debug, Clone)]
 pub enum MessageContent {
-    Text(String),
+    Text {
+        body: String,
+        /// Email subject (Gmail only).
+        subject: Option<String>,
+    },
     File {
         path: std::path::PathBuf,
         caption: Option<String>,
         mime_type: Option<String>,
+        /// Email subject (Gmail only). When absent, attachment sends use the filename.
+        subject: Option<String>,
     },
 }
 
 impl MessageContent {
+    pub fn from_text(body: impl Into<String>) -> Self {
+        Self::Text {
+            body: body.into(),
+            subject: None,
+        }
+    }
+
     /// The textual payload to send: the body for [`Text`](Self::Text), or the
     /// caption (empty when absent) for [`File`](Self::File).
     pub fn text(&self) -> &str {
         match self {
-            MessageContent::Text(text) => text.as_str(),
+            MessageContent::Text { body, .. } => body.as_str(),
             MessageContent::File { caption, .. } => caption.as_deref().unwrap_or(""),
+        }
+    }
+
+    /// Email subject when sending via Gmail.
+    pub fn subject(&self) -> Option<&str> {
+        match self {
+            MessageContent::Text { subject, .. } | MessageContent::File { subject, .. } => {
+                subject.as_deref()
+            }
         }
     }
 }

@@ -50,7 +50,7 @@ async fn client_send_returns_sync_not_ready_without_live_client() {
         &dir,
         "whatsapp",
         "33612345678",
-        MessageContent::Text("hello".into()),
+        MessageContent::from_text("hello"),
     )
     .await
     .unwrap_err()
@@ -76,7 +76,7 @@ async fn client_reply_routes_to_registered_connection() {
         &dir,
         "whatsapp",
         "120363@g.us:MSG123",
-        MessageContent::Text("reply".into()),
+        MessageContent::from_text("reply"),
         true,
     )
     .await
@@ -99,15 +99,10 @@ async fn client_unknown_connection_returns_error() {
 
     let (cancel, server) = start_test_server(&dir, "whatsapp").await;
 
-    let err = send_message(
-        &dir,
-        "other-account",
-        "336",
-        MessageContent::Text("x".into()),
-    )
-    .await
-    .unwrap_err()
-    .to_string();
+    let err = send_message(&dir, "other-account", "336", MessageContent::from_text("x"))
+        .await
+        .unwrap_err()
+        .to_string();
     assert!(err.contains("other-account"), "{err}");
 
     cancel.cancel();
@@ -126,7 +121,7 @@ async fn client_send_surfaces_connect_error_when_no_server() {
         &dir,
         "whatsapp",
         "33612345678",
-        MessageContent::Text("hi".into()),
+        MessageContent::from_text("hi"),
     )
     .await
     .unwrap_err()

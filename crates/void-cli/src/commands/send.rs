@@ -92,9 +92,13 @@ pub async fn run(args: &SendArgs) -> anyhow::Result<()> {
             path: path.into(),
             caption: Some(args.message.clone()),
             mime_type: None,
+            subject: args.subject.clone(),
         }
     } else {
-        MessageContent::Text(args.message.clone())
+        MessageContent::Text {
+            body: args.message.clone(),
+            subject: args.subject.clone(),
+        }
     };
 
     let msg_id = if connector_type == ConnectorType::WhatsApp && is_daemon_running(&store_path) {
