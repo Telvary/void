@@ -11,6 +11,7 @@ pub enum ConnectorType {
     HackerNews,
     GoogleNews,
     LinkedIn,
+    GitHub,
 }
 
 impl std::fmt::Display for ConnectorType {
@@ -24,6 +25,7 @@ impl std::fmt::Display for ConnectorType {
             Self::HackerNews => write!(f, "hackernews"),
             Self::GoogleNews => write!(f, "googlenews"),
             Self::LinkedIn => write!(f, "linkedin"),
+            Self::GitHub => write!(f, "github"),
         }
     }
 }
@@ -40,6 +42,7 @@ impl ConnectorType {
             Self::HackerNews => "HN",
             Self::GoogleNews => "GN",
             Self::LinkedIn => "LI",
+            Self::GitHub => "GH",
         }
     }
 }

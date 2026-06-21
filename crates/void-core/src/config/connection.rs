@@ -74,6 +74,14 @@ impl<'de> Deserialize<'de> for ConnectionConfig {
                     .account_id
                     .ok_or_else(|| serde::de::Error::missing_field("account_id"))?,
             },
+            ConnectorType::GitHub => ConnectionSettings::GitHub {
+                token: raw
+                    .token
+                    .ok_or_else(|| serde::de::Error::missing_field("token"))?,
+                username: raw
+                    .username
+                    .ok_or_else(|| serde::de::Error::missing_field("username"))?,
+            },
         };
         Ok(ConnectionConfig {
             id: raw.id,
@@ -121,6 +129,10 @@ struct RawConnectionConfig {
     dsn: Option<String>,
     #[serde(default)]
     account_id: Option<String>,
+    #[serde(default)]
+    token: Option<String>,
+    #[serde(default)]
+    username: Option<String>,
     #[serde(default)]
     ignore_conversations: Option<Vec<String>>,
 }
@@ -173,6 +185,10 @@ pub enum ConnectionSettings {
         api_key: String,
         dsn: String,
         account_id: String,
+    },
+    GitHub {
+        token: String,
+        username: String,
     },
 }
 
@@ -245,6 +261,11 @@ impl std::fmt::Debug for ConnectionSettings {
                 .field("api_key", &redact_token(api_key))
                 .field("dsn", dsn)
                 .field("account_id", account_id)
+                .finish(),
+            Self::GitHub { token, username } => f
+                .debug_struct("GitHub")
+                .field("token", &redact_token(token))
+                .field("username", username)
                 .finish(),
         }
     }

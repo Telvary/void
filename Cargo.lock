@@ -4432,6 +4432,7 @@ dependencies = [
  "uuid",
  "void-calendar",
  "void-core",
+ "void-github",
  "void-gmail",
  "void-googlenews",
  "void-hackernews",
@@ -4462,6 +4463,24 @@ dependencies = [
  "toml 1.1.2+spec-1.1.0",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "void-github"
+version = "0.10.3"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "void-core",
+ "wiremock",
 ]
 
 [[package]]

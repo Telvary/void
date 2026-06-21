@@ -81,6 +81,7 @@ hackernews_poll_interval_secs = 3600
 googlenews_poll_interval_secs = 3600
 linkedin_poll_interval_secs = 1800
 linkedin_backfill_days = 15
+github_poll_interval_secs = 120
 
 # Example connections (uncomment and fill in):
 #
@@ -134,6 +135,12 @@ linkedin_backfill_days = 15
 # api_key = "your-unipile-api-key"
 # dsn = "https://api1.unipile.com:13111"
 # account_id = "your-unipile-account-id"
+#
+# [[connections]]
+# id = "github"
+# type = "github"
+# token = "ghp_..."
+# username = "your-github-handle"
 "#,
         default_store_path_template()
     )

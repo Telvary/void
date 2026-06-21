@@ -4,6 +4,7 @@ pub(crate) mod auth;
 mod calendar;
 mod config_ui;
 pub(crate) mod connection_menu;
+mod github;
 mod gmail;
 mod googlenews;
 mod hackernews;

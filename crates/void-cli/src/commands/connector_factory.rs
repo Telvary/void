@@ -304,6 +304,15 @@ pub fn build_connector(
                 sync_cfg.linkedin_backfill_days,
             )))
         }
+        (ConnectorType::GitHub, ConnectionSettings::GitHub { token, username }) => {
+            let poll_secs = crate::context::config().sync.github_poll_interval_secs;
+            Ok(Arc::new(void_github::connector::GitHubConnector::new(
+                &connection.id,
+                token.clone(),
+                username.clone(),
+                poll_secs,
+            )))
+        }
         _ => anyhow::bail!(
             "Mismatched connector type and settings for '{}': type={}, settings don't match",
             connection.id,
