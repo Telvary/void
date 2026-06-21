@@ -277,24 +277,44 @@ impl SlackConnector {
 
             for m in &resp.messages.matches {
                 slack_matches += 1;
-                if db
-                    .find_message_by_external_id(&self.connection_id, &m.ts)?
-                    .is_some()
-                {
-                    saved_external_ids.insert(m.ts.clone());
-                } else if self
-                    .ingest_saved_match(db, &m.channel.id, &m.ts, &user_cache)
-                    .await?
-                {
-                    ingested += 1;
-                    saved_external_ids.insert(m.ts.clone());
-                } else {
-                    warn!(
-                        connection_id = %self.connection_id,
-                        channel_id = %m.channel.id,
-                        ts = %m.ts,
-                        "saved message could not be ingested"
-                    );
+                match db.find_message_by_external_id(&self.connection_id, &m.ts) {
+                    Ok(Some(_)) => {
+                        saved_external_ids.insert(m.ts.clone());
+                    }
+                    Ok(None) => match self
+                        .ingest_saved_match(db, &m.channel.id, &m.ts, &user_cache)
+                        .await
+                    {
+                        Ok(true) => {
+                            ingested += 1;
+                            saved_external_ids.insert(m.ts.clone());
+                        }
+                        Ok(false) => {
+                            warn!(
+                                connection_id = %self.connection_id,
+                                channel_id = %m.channel.id,
+                                ts = %m.ts,
+                                "saved message could not be ingested"
+                            );
+                        }
+                        Err(e) => {
+                            warn!(
+                                connection_id = %self.connection_id,
+                                channel_id = %m.channel.id,
+                                ts = %m.ts,
+                                error = %e,
+                                "failed to fetch saved message; skipping"
+                            );
+                        }
+                    },
+                    Err(e) => {
+                        warn!(
+                            connection_id = %self.connection_id,
+                            ts = %m.ts,
+                            error = %e,
+                            "saved lookup failed; skipping"
+                        );
+                    }
                 }
             }
 

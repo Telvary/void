@@ -1046,6 +1046,142 @@ async fn sync_saved_fetches_missing_message_and_marks_saved() {
 }
 
 #[tokio::test]
+async fn sync_saved_skips_inaccessible_item_and_continues() {
+    let server = wiremock::MockServer::start().await;
+
+    let users = serde_json::json!({
+        "ok": true,
+        "members": [
+            {
+                "id": "U1",
+                "name": "alice",
+                "real_name": "Alice",
+                "profile": {"display_name": "Alice", "real_name": "Alice"}
+            }
+        ]
+    });
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/users.list"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(users))
+        .mount(&server)
+        .await;
+
+    let search = serde_json::json!({
+        "ok": true,
+        "messages": {
+            "matches": [
+                {
+                    "ts": "1741700000.000100",
+                    "channel": {"id": "C1"},
+                    "user": "U1",
+                    "text": "Accessible saved item"
+                },
+                {
+                    "ts": "1741700000.000200",
+                    "channel": {"id": "C2"},
+                    "user": "U1",
+                    "text": "Inaccessible saved item"
+                }
+            ]
+        }
+    });
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/search.messages"))
+        .and(wiremock::matchers::query_param("query", "is:saved"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(search))
+        .mount(&server)
+        .await;
+
+    let channel_info = serde_json::json!({
+        "ok": true,
+        "channel": {
+            "id": "C1",
+            "name": "general",
+            "is_channel": true,
+            "is_group": false,
+            "is_im": false,
+            "is_mpim": false,
+            "is_private": false
+        }
+    });
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/conversations.info"))
+        .and(wiremock::matchers::query_param("channel", "C1"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(channel_info))
+        .mount(&server)
+        .await;
+
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/conversations.info"))
+        .and(wiremock::matchers::query_param("channel", "C2"))
+        .respond_with(
+            wiremock::ResponseTemplate::new(403).set_body_json(serde_json::json!({
+                "ok": false,
+                "error": "channel_not_found"
+            })),
+        )
+        .mount(&server)
+        .await;
+
+    let history = serde_json::json!({
+        "ok": true,
+        "messages": [
+            {
+                "ts": "1741700000.000100",
+                "user": "U1",
+                "text": "Accessible saved item"
+            }
+        ]
+    });
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/conversations.history"))
+        .and(wiremock::matchers::query_param("channel", "C1"))
+        .and(wiremock::matchers::query_param(
+            "latest",
+            "1741700000.000100",
+        ))
+        .and(wiremock::matchers::query_param(
+            "oldest",
+            "1741700000.000100",
+        ))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(history))
+        .mount(&server)
+        .await;
+
+    let connector = SlackConnector {
+        connection_id: "test-slack".to_string(),
+        api: crate::api::SlackApiClient::with_base_url("test-token", &server.uri()).unwrap(),
+        app_token: "xapp-test".to_string(),
+        app_id: None,
+        config_refresh_token: std::sync::Mutex::new(None),
+        config_path: None,
+        store_path: std::env::temp_dir(),
+    };
+
+    let db = void_core::db::Database::open_in_memory().unwrap();
+    connector.sync_saved(&db).await.unwrap();
+
+    let msg = db
+        .get_message("test-slack-1741700000.000100")
+        .unwrap()
+        .expect("accessible message should be ingested");
+    assert_eq!(msg.body.as_deref(), Some("Accessible saved item"));
+    assert!(msg.is_saved);
+
+    assert!(
+        db.get_message("test-slack-1741700000.000200")
+            .unwrap()
+            .is_none(),
+        "inaccessible message should not be ingested"
+    );
+
+    let (rows, total) = db.list_saved_messages(None, None, 50, 0).unwrap();
+    assert_eq!(total, 1);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id, "test-slack-1741700000.000100");
+}
+
+#[tokio::test]
 async fn start_sync_runs_catch_up_when_backfill_done() {
     let server = wiremock::MockServer::start().await;
 
