@@ -139,7 +139,7 @@ Everything lives locally under `store.path` — no external database, no Docker:
 | `void.db` | Main SQLite database (WAL mode), plus `void.db-shm` / `void.db-wal` |
 | `whatsapp-<connection-id>.db` | WhatsApp session |
 | `telegram-<connection-id>.json` | Telegram session |
-| `<connection-id>-token.json` | OAuth2 token cache (Gmail, Calendar, Drive) |
+| `<connection-id>-token.json` | OAuth2 token cache (Gmail, Calendar) |
 | `LOCK` | PID file while the sync daemon is running |
 
 The config file lives at the platform config path (above), separate from the store.

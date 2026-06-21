@@ -77,8 +77,6 @@ pub(crate) enum Command {
     Linkedin(commands::linkedin::LinkedInArgs),
     /// Calendar events
     Calendar(commands::calendar::CalendarArgs),
-    /// Download files from Google Drive/Docs/Sheets/Slides
-    Drive(commands::gdrive::GdriveArgs),
     /// Manage hooks — LLM prompts triggered by events or schedules
     Hook(commands::hook::HookArgs),
     /// Remote store utilities (status, cache refresh)
@@ -190,7 +188,6 @@ async fn async_main(cli: Cli) -> anyhow::Result<()> {
         Some(Command::Telegram(args)) => commands::telegram::run(args).await,
         Some(Command::Linkedin(args)) => commands::linkedin::run(args).await,
         Some(Command::Calendar(args)) => commands::calendar::run(args).await,
-        Some(Command::Drive(args)) => commands::gdrive::run(args).await,
         Some(Command::Hook(args)) => commands::hook::run(args),
         Some(Command::Remote(args)) => {
             commands::remote::run(args, cli.config.as_deref(), cli.store.as_deref())
@@ -269,20 +266,6 @@ mod tests {
     #[test]
     fn whatsapp_download_uses_remote_proxy_in_remote_mode() {
         let cli = parse(&["void", "whatsapp", "download", "m1", "--out", "/tmp/x.jpg"]);
-        let cmd = cli.command.as_ref().expect("command");
-        assert!(!context::runs_with_local_cache(cmd));
-    }
-
-    #[test]
-    fn drive_download_uses_remote_proxy_in_remote_mode() {
-        let cli = parse(&[
-            "void",
-            "drive",
-            "download",
-            "https://drive.google.com/file/d/abc",
-            "--output",
-            "/tmp/x.pdf",
-        ]);
         let cmd = cli.command.as_ref().expect("command");
         assert!(!context::runs_with_local_cache(cmd));
     }

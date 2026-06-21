@@ -5,7 +5,6 @@ pub mod connector_factory;
 pub mod contacts;
 pub mod doctor;
 pub mod forward;
-pub mod gdrive;
 pub mod gmail;
 pub mod googlenews;
 pub mod hackernews;

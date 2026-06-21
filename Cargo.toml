@@ -8,7 +8,6 @@ members = [
     "crates/void-calendar",
     "crates/void-whatsapp",
     "crates/void-telegram",
-    "crates/void-gdrive",
     "crates/void-hackernews",
     "crates/void-googlenews",
     "crates/void-linkedin",
@@ -81,7 +80,6 @@ void-gmail = { path = "crates/void-gmail" }
 void-calendar = { path = "crates/void-calendar" }
 void-whatsapp = { path = "crates/void-whatsapp" }
 void-telegram = { path = "crates/void-telegram" }
-void-gdrive = { path = "crates/void-gdrive" }
 void-hackernews = { path = "crates/void-hackernews" }
 void-googlenews = { path = "crates/void-googlenews" }
 void-linkedin = { path = "crates/void-linkedin" }

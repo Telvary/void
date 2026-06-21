@@ -12,7 +12,6 @@ Complete reference for every `void` command. For per-service credential setup, s
 - [WhatsApp](#whatsapp)
 - [Telegram](#telegram)
 - [LinkedIn](#linkedin)
-- [Google Drive](#google-drive)
 - [Hacker News](#hacker-news)
 - [Hooks](#hooks)
 - [System](#system)
@@ -129,14 +128,6 @@ All Slack subcommands accept `--connection <id>`.
 | Command | Description |
 |---------|-------------|
 | `void linkedin download <id> --out <path>` | Download message media (via Unipile) |
-
-## Google Drive
-
-| Command | Description |
-|---------|-------------|
-| `void drive download <url-or-id>` | Download a file from Drive/Docs/Sheets/Slides. `-o/--output <path>`, `-f/--format <fmt>` (export format), `--stdout` to pipe content |
-| `void drive info <url-or-id>` | Show file metadata |
-| `void drive auth` | Authenticate with Google Drive |
 
 ## Hacker News
 

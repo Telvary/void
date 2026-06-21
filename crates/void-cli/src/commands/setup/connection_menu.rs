@@ -4,7 +4,7 @@ use void_core::config::VoidConfig;
 
 use super::auth::authenticate_connection;
 use super::prompt::{prompt, select, separator};
-use super::{calendar, gdrive, gmail, googlenews, hackernews, linkedin, slack, telegram, whatsapp};
+use super::{calendar, gmail, googlenews, hackernews, linkedin, slack, telegram, whatsapp};
 
 pub(crate) async fn add_connection(cfg: &mut VoidConfig, store_path: &Path) -> anyhow::Result<()> {
     let choice = select(
@@ -15,7 +15,6 @@ pub(crate) async fn add_connection(cfg: &mut VoidConfig, store_path: &Path) -> a
             "WhatsApp",
             "Telegram",
             "Google Calendar",
-            "Google Drive",
             "Hacker News",
             "Google News",
             "LinkedIn",
@@ -29,10 +28,9 @@ pub(crate) async fn add_connection(cfg: &mut VoidConfig, store_path: &Path) -> a
         2 => whatsapp::setup_whatsapp(cfg, store_path, true).await?,
         3 => telegram::setup_telegram(cfg, store_path, true).await?,
         4 => calendar::setup_calendar(cfg, store_path, true).await?,
-        5 => gdrive::setup_gdrive(cfg, store_path).await?,
-        6 => hackernews::setup_hackernews(cfg, true)?,
-        7 => googlenews::setup_googlenews(cfg, true)?,
-        8 => linkedin::setup_linkedin(cfg, store_path, true).await?,
+        5 => hackernews::setup_hackernews(cfg, true)?,
+        6 => googlenews::setup_googlenews(cfg, true)?,
+        7 => linkedin::setup_linkedin(cfg, store_path, true).await?,
         _ => {}
     }
     Ok(())
@@ -90,18 +88,6 @@ pub(crate) fn rename_connection(
             "  Renamed token: {} → {}",
             old_token.display(),
             new_token.display()
-        );
-    }
-
-    // Rename Drive token file if present
-    let old_drive_token = store_path.join(format!("{old_name}-drive-token.json"));
-    let new_drive_token = store_path.join(format!("{new_name}-drive-token.json"));
-    if old_drive_token.exists() {
-        std::fs::rename(&old_drive_token, &new_drive_token)?;
-        eprintln!(
-            "  Renamed drive token: {} → {}",
-            old_drive_token.display(),
-            new_drive_token.display()
         );
     }
 
