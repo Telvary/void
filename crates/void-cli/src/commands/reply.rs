@@ -161,6 +161,7 @@ fn build_reply_id(
         ConnectorType::HackerNews => msg_external_id.to_string(),
         ConnectorType::GoogleNews => msg_external_id.to_string(),
         ConnectorType::LinkedIn => format!("{conv_external_id}:{msg_external_id}"),
+        ConnectorType::GitHub => msg_external_id.to_string(),
     }
 }
 
@@ -213,5 +214,15 @@ mod tests {
     fn build_reply_id_googlenews_uses_message_external_id_only() {
         let id = build_reply_id(ConnectorType::GoogleNews, "feed", "article-7");
         assert_eq!(id, "article-7");
+    }
+
+    #[test]
+    fn build_reply_id_github_uses_message_external_id_only() {
+        let id = build_reply_id(
+            ConnectorType::GitHub,
+            "github_github_owner_repo",
+            "github_github_notification_1",
+        );
+        assert_eq!(id, "github_github_notification_1");
     }
 }

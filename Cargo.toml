@@ -8,10 +8,10 @@ members = [
     "crates/void-calendar",
     "crates/void-whatsapp",
     "crates/void-telegram",
-    "crates/void-gdrive",
     "crates/void-hackernews",
     "crates/void-googlenews",
     "crates/void-linkedin",
+    "crates/void-github",
 ]
 
 [workspace.package]
@@ -28,7 +28,7 @@ tokio = { version = "1", features = ["full"] }
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.9"
+toml = "1.1"
 
 # CLI
 clap = { version = "4", features = ["derive"] }
@@ -81,7 +81,7 @@ void-gmail = { path = "crates/void-gmail" }
 void-calendar = { path = "crates/void-calendar" }
 void-whatsapp = { path = "crates/void-whatsapp" }
 void-telegram = { path = "crates/void-telegram" }
-void-gdrive = { path = "crates/void-gdrive" }
 void-hackernews = { path = "crates/void-hackernews" }
 void-googlenews = { path = "crates/void-googlenews" }
 void-linkedin = { path = "crates/void-linkedin" }
+void-github = { path = "crates/void-github" }

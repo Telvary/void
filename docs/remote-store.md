@@ -54,7 +54,7 @@ All `[store.remote]` options:
 
 - **Read commands** (`inbox`, `search`, `messages`, …) use a cached database snapshot pulled over SSH — instant after the first fetch, refreshed when older than `database_ttl_secs`
 - **Write commands** (`send`, `reply`, `archive`, …) are proxied to the server via SSH
-- **File attachments** — `--file` on proxied sends/replies/drafts is staged to the remote store over SCP before the command runs; download commands (`gmail attachment`, `whatsapp download`, `telegram download`, `linkedin download`, `drive download --output`) write to a remote temp path and the result is pulled back to your local `--out`/`--output` path
+- **File attachments** — `--file` on proxied sends/replies/drafts is staged to the remote store over SCP before the command runs; download commands (`gmail attachment`, `whatsapp download`, `telegram download`, `linkedin download`) write to a remote temp path and the result is pulled back to your local `--out` path
 
 ## Inspecting and refreshing
 

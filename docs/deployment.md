@@ -72,7 +72,7 @@ The CLI then routes every command appropriately, transparently:
 
 - **Reads** (`inbox`, `search`, `messages`, `calendar`, …) hit a local snapshot of the server's database, pulled over SSH and refreshed when stale (30 s by default). They stay instant and keep working offline.
 - **Writes** (`send`, `reply`, `archive`, …) are proxied to the server over SSH and run there, where the credentials live. Your laptop never holds a token.
-- **File transfers** work in both directions: `--file` attachments are staged to the server before sending, and downloads (`gmail attachment`, `whatsapp download`, `drive download`, …) are fetched on the server and pulled back to your local path.
+- **File transfers** work in both directions: `--file` attachments are staged to the server before sending, and downloads (`gmail attachment`, `whatsapp download`, …) are fetched on the server and pulled back to your local path.
 - **Hooks** run on the server, around the clock.
 
 `void remote status` shows SSH connectivity, cache age, and daemon state; `void remote refresh` force-refreshes the snapshot. Setup details, the full `[store.remote]` option reference, and a starter server config: [Remote store](remote-store.md).

@@ -9,10 +9,10 @@ Every connector is added through the same flow: run `void setup`, pick the servi
 | [Slack](#slack) | Slack app tokens | Socket Mode WebSocket (push) |
 | [Gmail](#gmail--google-calendar) | Built-in OAuth (or your own) | `history.list` polling |
 | [Google Calendar](#gmail--google-calendar) | Built-in OAuth (or your own) | `syncToken` polling |
-| [Google Drive](#google-drive) | Built-in OAuth (or your own) | On-demand (no sync) |
 | [LinkedIn](#linkedin-unipile) | Unipile API key | Unipile API polling |
 | [Hacker News](#hacker-news) | None — public API | HN API polling |
 | [Google News](#google-news) | None — public RSS | Google News RSS polling |
+| [GitHub](#github) | Personal Access Token | GitHub REST API polling |
 
 ## WhatsApp
 
@@ -51,15 +51,6 @@ Built-in OAuth2 credentials are included — **no Google Cloud setup required**:
 3. Complete the OAuth flow in your browser
 
 Gmail and Calendar share the same OAuth credentials, so adding the second one after the first is instant. By default Calendar syncs your primary calendar; list more with `calendar_ids`.
-
-## Google Drive
-
-Drive is on-demand (download/info/export) rather than synced. It reuses the same Google OAuth flow:
-
-```bash
-void drive auth
-void drive download "https://docs.google.com/document/d/..." -o report.md
-```
 
 ## LinkedIn (Unipile)
 
@@ -128,6 +119,32 @@ void gn config
 ```
 
 To follow several editions (e.g. French and US news), add one connection per edition — each is targetable with `--connection <id>`.
+
+## GitHub
+
+GitHub syncs actionable activity into your inbox (read-only):
+
+- Open pull requests requesting your review
+- Comments on pull requests you authored
+- @mentions of your handle
+
+1. Create a [GitHub Personal Access Token](https://github.com/settings/tokens) with at least the `notifications` scope
+2. For private repositories, also grant `repo` (classic PAT) or Pull requests read access (fine-grained PAT)
+3. Run `void setup`, select GitHub, and paste the token
+
+```toml
+[[connections]]
+id = "github"
+type = "github"
+token = "ghp_..."
+username = "your-github-handle"
+```
+
+Each repository appears as its own conversation. Mute noisy repos with `void mute owner/repo` or add them to `ignore_conversations`:
+
+```toml
+ignore_conversations = ["facebook/react", "kubernetes"]
+```
 
 ## Multiple accounts
 

@@ -69,7 +69,6 @@ const TOP_LEVEL_COMMANDS: &[&str] = &[
     "whatsapp",
     "telegram",
     "linkedin",
-    "drive",
     "hn",
     "hook",
     "sync",

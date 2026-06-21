@@ -10,6 +10,7 @@ use wa_rs::Jid;
 use wa_rs_binary::jid::JidExt;
 use wa_rs_proto::whatsapp::ContextInfo;
 
+use super::media::upload_and_build_media_message;
 use super::send::{build_wa_message, normalize_phone, parse_jid};
 use void_core::models::MessageContent;
 
@@ -119,8 +120,20 @@ pub async fn send_self_chat_message(
     let own_pn = parse_jid(own_pn)?;
 
     let msg = match &content {
-        MessageContent::File { .. } => {
-            anyhow::bail!("File attachments are not yet supported for notes-to-self sends")
+        MessageContent::File {
+            path,
+            caption,
+            mime_type,
+            ..
+        } => {
+            upload_and_build_media_message(
+                client,
+                path,
+                caption.as_deref(),
+                mime_type.as_deref(),
+                context_info,
+            )
+            .await?
         }
         _ => build_wa_message(&content, context_info)?,
     };
