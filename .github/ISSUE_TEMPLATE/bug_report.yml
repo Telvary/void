@@ -49,7 +49,6 @@ body:
         - Slack
         - Gmail
         - Google Calendar
-        - Google Drive
         - LinkedIn
         - Hacker News
   - type: textarea

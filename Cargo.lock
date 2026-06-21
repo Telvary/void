@@ -4432,7 +4432,6 @@ dependencies = [
  "uuid",
  "void-calendar",
  "void-core",
- "void-gdrive",
  "void-gmail",
  "void-googlenews",
  "void-hackernews",
@@ -4463,25 +4462,6 @@ dependencies = [
  "toml 1.1.2+spec-1.1.0",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "void-gdrive"
-version = "0.10.3"
-dependencies = [
- "anyhow",
- "chrono",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "url",
- "uuid",
- "void-gmail",
- "wiremock",
 ]
 
 [[package]]

@@ -9,7 +9,6 @@ Every connector is added through the same flow: run `void setup`, pick the servi
 | [Slack](#slack) | Slack app tokens | Socket Mode WebSocket (push) |
 | [Gmail](#gmail--google-calendar) | Built-in OAuth (or your own) | `history.list` polling |
 | [Google Calendar](#gmail--google-calendar) | Built-in OAuth (or your own) | `syncToken` polling |
-| [Google Drive](#google-drive) | Built-in OAuth (or your own) | On-demand (no sync) |
 | [LinkedIn](#linkedin-unipile) | Unipile API key | Unipile API polling |
 | [Hacker News](#hacker-news) | None — public API | HN API polling |
 | [Google News](#google-news) | None — public RSS | Google News RSS polling |
@@ -51,15 +50,6 @@ Built-in OAuth2 credentials are included — **no Google Cloud setup required**:
 3. Complete the OAuth flow in your browser
 
 Gmail and Calendar share the same OAuth credentials, so adding the second one after the first is instant. By default Calendar syncs your primary calendar; list more with `calendar_ids`.
-
-## Google Drive
-
-Drive is on-demand (download/info/export) rather than synced. It reuses the same Google OAuth flow:
-
-```bash
-void drive auth
-void drive download "https://docs.google.com/document/d/..." -o report.md
-```
 
 ## LinkedIn (Unipile)
 

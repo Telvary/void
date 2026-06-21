@@ -72,37 +72,6 @@ pub fn plan_proxy_file_transfer(
                     continue;
                 }
             }
-            "--output"
-                if is_drive_download_proxy_command(args)
-                    && !args.contains(&"--stdout".to_string()) =>
-            {
-                if let Some(path) = take_flag_value(&rewritten, i) {
-                    let local_out = expand_tilde(path);
-                    let remote_path = staging_path(&staging_dir, &local_out);
-                    download = Some(StagedDownload {
-                        remote_path: remote_path.clone(),
-                        local_out,
-                    });
-                    rewritten[i + 1] = remote_path;
-                    i += 2;
-                    continue;
-                }
-            }
-            "-o" if is_drive_download_proxy_command(args)
-                && !args.contains(&"--stdout".to_string()) =>
-            {
-                if let Some(path) = take_flag_value(&rewritten, i) {
-                    let local_out = expand_tilde(path);
-                    let remote_path = staging_path(&staging_dir, &local_out);
-                    download = Some(StagedDownload {
-                        remote_path: remote_path.clone(),
-                        local_out,
-                    });
-                    rewritten[i + 1] = remote_path;
-                    i += 2;
-                    continue;
-                }
-            }
             _ => {}
         }
         i += 1;
@@ -126,9 +95,7 @@ pub fn resolve_staged_paths_for_remote(
     }
     if let Some(download) = &plan.download {
         let resolved = resolve_remote_path(ssh, &download.remote_path)?;
-        for flag in ["--out", "--output", "-o"] {
-            replace_flag_value(&mut plan.args, flag, &download.remote_path, &resolved);
-        }
+        replace_flag_value(&mut plan.args, "--out", &download.remote_path, &resolved);
     }
     Ok(())
 }
@@ -243,10 +210,6 @@ fn is_download_proxy_command(args: &[String]) -> bool {
             | Some(("telegram", "download"))
             | Some(("linkedin", "download"))
     )
-}
-
-fn is_drive_download_proxy_command(args: &[String]) -> bool {
-    matches!(proxy_command_verb(args), Some(("drive", "download")))
 }
 
 fn proxy_command_verb(args: &[String]) -> Option<(&str, &str)> {
@@ -378,58 +341,6 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.to_string().contains("local file not found"));
-    }
-
-    #[test]
-    fn plan_rewrites_drive_download_output() {
-        for flag in ["--output", "-o"] {
-            let plan = plan_proxy_file_transfer(
-                "/var/void",
-                &[
-                    "drive".into(),
-                    "download".into(),
-                    "https://drive.google.com/file/d/abc".into(),
-                    flag.into(),
-                    "~/out/doc.pdf".into(),
-                ],
-            )
-            .unwrap();
-            assert!(plan.uploads.is_empty());
-            let download = plan.download.as_ref().unwrap();
-            assert!(download.remote_path.starts_with("/var/void/staging/"));
-            assert_eq!(download.local_out, expand_tilde("~/out/doc.pdf"));
-            let out_arg = plan
-                .args
-                .windows(2)
-                .find(|w| w[0] == flag)
-                .map(|w| w[1].clone())
-                .unwrap();
-            assert_eq!(out_arg, download.remote_path);
-        }
-    }
-
-    #[test]
-    fn plan_skips_drive_download_when_stdout() {
-        let plan = plan_proxy_file_transfer(
-            "/var/void",
-            &[
-                "drive".into(),
-                "download".into(),
-                "file-id".into(),
-                "--stdout".into(),
-                "--output".into(),
-                "/tmp/ignored.pdf".into(),
-            ],
-        )
-        .unwrap();
-        assert!(plan.download.is_none());
-        assert_eq!(
-            plan.args
-                .windows(2)
-                .find(|w| w[0] == "--output")
-                .map(|w| w[1].as_str()),
-            Some("/tmp/ignored.pdf")
-        );
     }
 
     #[test]

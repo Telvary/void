@@ -7,7 +7,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.95%2B-orange.svg)](Cargo.toml)
 
-**One inbox for everything.** `void` unifies WhatsApp, Telegram, Slack, Gmail, Google Calendar, Google Drive, LinkedIn, Hacker News, and Google News into a single local-first command-line tool — one inbox, one search index, one set of commands.
+**One inbox for everything.** `void` unifies WhatsApp, Telegram, Slack, Gmail, Google Calendar, LinkedIn, Hacker News, and Google News into a single local-first command-line tool — one inbox, one search index, one set of commands.
 
 It is built for terminals, shell scripts, and AI agents:
 
@@ -107,15 +107,6 @@ void calendar availability --attendees alice@x.com,bob@x.com --from 2026-06-15T0
 void calendar respond <id> --status accepted
 ```
 
-### Google Drive
-
-Docs: [commands](docs/commands.md#google-drive)
-
-```bash
-void drive download "https://docs.google.com/document/d/..." -o spec.md
-void drive download <sheet-url> --stdout | head    # pipe exported content
-```
-
 ### Hacker News
 
 Keyword-watched stories land in your inbox like any other message:
@@ -166,7 +157,7 @@ A background daemon keeps a local SQLite database in sync with every connected s
 |-------|------|
 | `void-core` | Config, database, models, hooks, `Connector` trait, sync engine |
 | `void-cli` | The `void` binary: clap commands, output formatting |
-| `void-slack`, `void-gmail`, `void-calendar`, `void-whatsapp`, `void-telegram`, `void-gdrive`, `void-hackernews`, `void-googlenews`, `void-linkedin` | One crate per connector |
+| `void-slack`, `void-gmail`, `void-calendar`, `void-whatsapp`, `void-telegram`, `void-hackernews`, `void-googlenews`, `void-linkedin` | One crate per connector |
 
 All data stays on your machine in `~/.local/share/void` — no external database, no Docker, no cloud. Layout details: [Configuration](docs/configuration.md#data-storage-layout).
 

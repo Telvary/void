@@ -32,7 +32,7 @@ Tell the **Best Practices Auditor** to skip its Phase 1 user-confirmation gate (
 After the sub-agents finish, cross-reference the docs against the code:
 
 - `README.md` and `docs/commands.md` vs the `Command` enum in `crates/void-cli/src/main.rs` and each subcommand module
-- Connector capabilities vs the eight connector crates (slack, gmail, calendar, whatsapp, telegram, gdrive, hackernews, linkedin)
+- Connector capabilities vs the connector crates (slack, gmail, calendar, whatsapp, telegram, hackernews, googlenews, linkedin)
 
 Fix commands/features that are documented but gone, present but undocumented, or described incorrectly.
 

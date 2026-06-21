@@ -721,7 +721,6 @@ let choice = select(
         "WhatsApp",
         "Telegram",
         "Google Calendar",
-        "Google Drive",
         "Hacker News",
         "Acme",           // ← add
     ],
@@ -734,7 +733,7 @@ let choice = select(
 
 ```rust
 // Existing calls: setup_gmail, setup_slack, setup_whatsapp, setup_telegram,
-//                 setup_calendar, setup_gdrive, setup_hackernews
+//                 setup_calendar, setup_hackernews
 separator();
 setup_acme(cfg, store_path, false).await?;
 ```
