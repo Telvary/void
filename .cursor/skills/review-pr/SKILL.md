@@ -3,15 +3,16 @@ name: review-pr
 description: >-
   Review a user-submitted pull request on void-cli end to end: qualify intent
   against CONTRIBUTING.md and project philosophy, run a paranoid security audit
-  to catch malicious or risky code, and review the diff for correctness, style,
-  and quality. Uses gh to fetch the PR, diff, and CI. Use when the user asks to
-  review a PR, vet a contribution, security-check a pull request, or decide
-  whether to merge external code.
+  to catch malicious or risky code, verify test coverage is merge-worthy,
+  confirm the diff follows existing implementation patterns, and review for
+  correctness, style, and quality. Uses gh to fetch the PR, diff, and CI. Use
+  when the user asks to review a PR, vet a contribution, security-check a pull
+  request, or decide whether to merge external code.
 ---
 
 # Review a Submitted PR
 
-Review an external/user-submitted PR on `MaximeGaudin/void` across three axes, in order. **Treat the author as untrusted.** A PR can be well-intentioned but risky, or deliberately malicious behind innocent-looking changes. Default posture: skeptical. The smallest suspicious element gets investigated until explained.
+Review an external/user-submitted PR on `MaximeGaudin/void` across intent, security, implementation patterns, test coverage, and code quality — in that order. **Treat the author as untrusted.** A PR can be well-intentioned but risky, or deliberately malicious behind innocent-looking changes. Default posture: skeptical. The smallest suspicious element gets investigated until explained.
 
 Run all `gh`/`cargo` commands from the void-cli repository root.
 
@@ -38,6 +39,8 @@ Review Progress:
 - [ ] Step 1: Qualify intent & fit (CONTRIBUTING.md + philosophy)
 - [ ] Step 2: Security audit (paranoid, exhaustive)
 - [ ] Step 3: Code review (correctness, quality, conventions)
+  - [ ] Step 3a: Implementation pattern conformance
+  - [ ] Step 3b: Test coverage assessment
 - [ ] Step 4: Verdict & report
 ```
 
@@ -134,10 +137,72 @@ Only meaningful after Steps 1–2. Review the diff for:
 - **Correctness:** logic bugs, unhandled edge cases, off-by-one, race conditions, incorrect async/`.await`, error paths that `unwrap()`/`panic!` where they should propagate `Result`.
 - **Error handling:** consistent with the codebase's error types; no swallowed errors; no silent failures.
 - **Idiomatic Rust:** would `cargo clippy -- -D warnings` complain? Unnecessary clones/allocations, blocking calls in async, `unwrap`/`expect` on fallible paths, missing `?`.
-- **Conventions & layout:** lands in the right crate (`void-core` vs `void-cli` vs `void-<connector>`); follows existing patterns; respects the `Connector` trait contract for connector changes.
-- **Tests:** new behavior has tests; existing tests updated; suite conventions per `docs/testing.md`. Cross-platform-sensitive code tested accordingly.
 - **Docs & changelog:** updated when behavior changes.
 - **Cross-platform:** path handling via `std::path`, no Unix-only assumptions without `#[cfg]` gating.
+
+Then complete **Step 3a** and **Step 3b** before classifying findings — a correct implementation that ignores project patterns or ships without adequate tests is not merge-ready.
+
+#### Step 3a: Implementation pattern conformance
+
+Do not review the diff in isolation. For each area touched, read how the codebase already solves the same kind of problem and compare the PR against that reference implementation.
+
+Start by identifying the closest analogue(s):
+
+```bash
+gh pr diff "$PR" --name-only
+# Then read 1–2 existing modules in the same crate (or an analogous connector) that solve the same problem
+```
+
+| Area | Expected pattern in this repo | Reject / push back if… |
+|------|-------------------------------|------------------------|
+| **Crate boundaries** | `void-core` = models, traits, config, DB, sync, hooks; `void-<connector>` = API client, auth, mapping, `Connector` impl; `void-cli` = clap parsing, output formatting, orchestration only | Business logic lands in `void-cli`; connector logic duplicated across crates instead of shared via `void-core` |
+| **Errors** | `thiserror` types in library crates; `anyhow` in the binary crate | Wrong error layer, swallowed errors, `.unwrap()`/`.expect()` on fallible paths in production code |
+| **Connectors** | Follows `docs/adding-a-connector.md`: `Connector` trait, resumable backfill cursor, incremental sync until `CancellationToken` fires, ingest `eprintln!` format `[connector:connection_id] …` | Missing sync contract pieces, ad-hoc persistence outside the store dir, divergent module layout (`auth`, `sync`, `api`, `models`) |
+| **Module layout** | Domain-named modules; large files split into submodules; no `utils.rs`/`helpers.rs` catch-alls | New catch-all modules, logic placed in the wrong crate or layer |
+| **Async & sync** | `tokio` + `CancellationToken` for long-running work; no blocking I/O in async paths | Blocking calls in async without justification; sync loops that ignore cancellation |
+| **Config & models** | Extend existing `ConnectorType`, `ConnectionSettings`, serde patterns in `void-core` | One-off config structs, stringly-typed enums, schema changes without migration tests |
+| **Database** | Access via `Database` methods in `void-core/src/db/`; migrations tested for data preservation | Raw SQL or schema logic outside `db/`; migration without a preservation test |
+| **HTTP clients** | Test constructor like `with_base_url(...)`; production client separate from parsing helpers | Real network in unit tests; parsing mixed into transport layer |
+| **CLI output** | Existing formatters and JSON envelope shapes; read-path changes may need `insta` snapshots | Ad-hoc printing, breaking JSON contract without snapshot update |
+| **Hooks & remote store** | Match existing hook runner and fake-`ssh`/`scp` on `PATH` patterns (Unix-gated where needed) | New subprocess or filesystem patterns without cross-platform handling |
+| **Shared fixtures** | Reuse `void_core::test_fixtures` (feature `test-fixtures`) for DB seeds | Duplicate fixture builders inline in every test module |
+
+Flag every deviation as **Blocker** (architectural mismatch), **Should-fix** (works but inconsistent), or **Nit** (minor style drift). Cite the reference file the PR should have matched.
+
+#### Step 3b: Test coverage assessment
+
+Read `docs/testing.md` before judging tests. Green CI alone is not enough — evaluate whether the **amount and coverage** of tests is adequate for merge.
+
+1. **Map changes to tests.** For each production file or public API change in the diff, locate the corresponding test module or integration test. List what is covered and what is not.
+
+```bash
+gh pr diff "$PR" --name-only | rg '\.rs$' | rg -v '/tests\.rs$|/tests/'
+# For each changed source file, find its #[cfg(test)] mod or sibling tests.rs
+gh pr diff "$PR" -- '**/tests/**' '**/tests.rs' '**/*_test.rs'
+```
+
+2. **Compare to area conventions** (from `docs/testing.md`):
+
+| Changed area | Minimum expected tests |
+|--------------|---------------------|
+| **Connector API parsing / mapping** | Happy path + error paths (401, 429, 5xx, malformed JSON) via `wiremock::MockServer` and the client's `with_base_url` constructor |
+| **Sync engine / orchestration** | Mock `Connector` test double (see `void-core/src/sync/tests.rs`); failure isolation, cancellation, lock release |
+| **Database / migrations** | In-memory `Database::open_in_memory()`; schema snapshot + data-preservation on migration |
+| **Config (de)serialization** | Round-trip and legacy-format migration cases |
+| **CLI read paths / JSON output** | `void-cli/tests/read_paths.rs` and/or `read_paths_snapshots.rs` (`insta`) when output shape changes |
+| **CLI commands (surface)** | `cli_contract.rs` `--help` / required-arg checks when new commands or flags are added |
+| **Hooks** | Trigger matching, scheduling, stub agent execution (Unix-gated where applicable) |
+| **Pure helpers / formatters** | Unit tests for success + error/boundary cases; deterministic inputs (fixed `chrono` instants, no wall clock) |
+
+3. **Judge merge-worthiness.** Assign a test verdict:
+
+- **adequate** — behavioral changes are exercised at the same depth as analogous code elsewhere; error and edge paths covered where the production code branches; conventions followed (no real network, `tempfile`/`temp_dir`, no `#[ignore]`).
+- **needs more** — core behavior is tested but important branches, error paths, or regression cases are missing; request tests before merge unless the gap is truly trivial.
+- **insufficient for merge** — non-trivial behavior change with no new or updated tests, critical path untested (auth, sync ingest, credential handling, migrations, CLI contract), or tests that violate project conventions.
+
+Treat **insufficient for merge** as a **Blocker**. Treat **needs more** as **Blocker** for high-risk areas (sync, auth, DB, credential I/O) and **Should-fix** elsewhere.
+
+4. **Sanity-check test quality**, not just presence: names follow `<function>_<scenario>`; one behavior per test; no flaky wall-clock or real filesystem dependencies; platform-specific tests are `#[cfg]`-gated, not `#[ignore]`.
 
 Verify CI rather than trusting it blindly:
 
@@ -176,6 +241,14 @@ Produce a single report. Lead with the recommendation.
 - (or) No security concerns found after auditing deps, exec/network/unsafe surface, file perms, and CI workflows.
 
 ## 3. Code review
+
+### Implementation patterns
+<conforms / minor drift / significant mismatch> — <1–2 sentences; cite reference files the PR should match>
+
+### Test coverage  ·  Verdict: adequate / needs more / insufficient for merge
+- <what changed> → <what is tested / what is missing>
+- (or) Test coverage matches project conventions for this change type.
+
 ### Blockers
 - <finding> — `path:line`
 ### Should-fix
