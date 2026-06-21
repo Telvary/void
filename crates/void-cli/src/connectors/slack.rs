@@ -35,8 +35,16 @@ fn session_files(_store: &Path, _connection_id: &str) -> Vec<PathBuf> {
 fn build(
     connection: &ConnectionConfig,
     store_path: &Path,
-    _sync: &SyncConfig,
+    sync: &SyncConfig,
 ) -> anyhow::Result<Arc<dyn Connector>> {
+    Ok(Arc::new(build_slack(connection, store_path, sync)?))
+}
+
+pub(crate) fn build_slack(
+    connection: &ConnectionConfig,
+    store_path: &Path,
+    _sync: &SyncConfig,
+) -> anyhow::Result<void_slack::connector::SlackConnector> {
     let user_token = settings_string(&connection.settings, "user_token").ok_or_else(|| {
         anyhow::anyhow!(
             "missing user_token for Slack connection '{}'",
@@ -48,7 +56,7 @@ fn build(
     })?;
     let app_id = settings_string(&connection.settings, "app_id");
     let config_refresh_token = settings_string(&connection.settings, "config_refresh_token");
-    Ok(Arc::new(void_slack::connector::SlackConnector::new(
+    Ok(void_slack::connector::SlackConnector::new(
         &connection.id,
         &user_token,
         &app_token,
@@ -56,7 +64,7 @@ fn build(
         config_refresh_token.as_deref(),
         store_path,
         Some(&crate::context::client_config_path()),
-    )?))
+    )?)
 }
 
 fn setup(ctx: SetupCtx<'_>) -> Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + '_>> {

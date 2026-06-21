@@ -37,15 +37,22 @@ fn build(
     store_path: &Path,
     _sync: &SyncConfig,
 ) -> anyhow::Result<Arc<dyn Connector>> {
+    Ok(Arc::new(build_telegram(connection, store_path)?))
+}
+
+pub(crate) fn build_telegram(
+    connection: &ConnectionConfig,
+    store_path: &Path,
+) -> anyhow::Result<void_telegram::connector::TelegramConnector> {
     let api_id = settings_i64(&connection.settings, "api_id").map(|v| v as i32);
     let api_hash = settings_string(&connection.settings, "api_hash");
     let session_path = store_path.join(format!("telegram-{}.json", connection.id));
-    Ok(Arc::new(void_telegram::connector::TelegramConnector::new(
+    Ok(void_telegram::connector::TelegramConnector::new(
         &connection.id,
         session_path.to_str().unwrap_or(""),
         api_id,
         api_hash.as_deref(),
-    )))
+    ))
 }
 
 fn setup(ctx: SetupCtx<'_>) -> Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + '_>> {

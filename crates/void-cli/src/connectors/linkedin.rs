@@ -9,13 +9,15 @@ use void_core::connector::Connector;
 
 use super::{ConnectorPlugin, ReplyIdStyle, SetupCtx};
 
+const DEFAULT_POLL_INTERVAL_SECS: u64 = 30 * 60;
+
 inventory::submit! {
     ConnectorPlugin {
         id: void_linkedin::CONNECTOR_ID,
         aliases: &["linkedin", "li"],
         menu_label: "LinkedIn",
         badge: "LI",
-        default_poll_interval_secs: Some(30 * 60),
+        default_poll_interval_secs: Some(DEFAULT_POLL_INTERVAL_SECS),
         reply_id_style: ReplyIdStyle::ConvMsg,
         supports_scheduling: false,
         uses_daemon_rpc: false,
@@ -57,7 +59,7 @@ fn build(
         &api_key,
         &dsn,
         &account_id,
-        sync.linkedin_poll_interval_secs(),
+        sync.poll_interval_secs(void_linkedin::CONNECTOR_ID, DEFAULT_POLL_INTERVAL_SECS),
         sync.linkedin_backfill_days(),
     )))
 }

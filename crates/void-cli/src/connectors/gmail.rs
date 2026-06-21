@@ -9,13 +9,15 @@ use void_core::connector::Connector;
 
 use super::{ConnectorPlugin, ReplyIdStyle, SetupCtx};
 
+const DEFAULT_POLL_INTERVAL_SECS: u64 = 30;
+
 inventory::submit! {
     ConnectorPlugin {
         id: void_gmail::CONNECTOR_ID,
         aliases: &["gmail", "gm", "email"],
         menu_label: "Gmail",
         badge: "GM",
-        default_poll_interval_secs: Some(30),
+        default_poll_interval_secs: Some(DEFAULT_POLL_INTERVAL_SECS),
         reply_id_style: ReplyIdStyle::MsgOnly,
         supports_scheduling: false,
         uses_daemon_rpc: false,
@@ -35,15 +37,25 @@ fn session_files(store: &Path, connection_id: &str) -> Vec<PathBuf> {
 fn build(
     connection: &ConnectionConfig,
     store_path: &Path,
-    _sync: &SyncConfig,
+    sync: &SyncConfig,
 ) -> anyhow::Result<Arc<dyn Connector>> {
+    Ok(Arc::new(build_gmail(connection, store_path, sync)?))
+}
+
+pub(crate) fn build_gmail(
+    connection: &ConnectionConfig,
+    store_path: &Path,
+    sync: &SyncConfig,
+) -> anyhow::Result<void_gmail::connector::GmailConnector> {
     let credentials_file = settings_string(&connection.settings, "credentials_file");
     let cred_path = credentials_file.as_ref().map(|f| expand_tilde(f));
-    Ok(Arc::new(void_gmail::connector::GmailConnector::new(
+    let poll_secs = sync.poll_interval_secs(void_gmail::CONNECTOR_ID, DEFAULT_POLL_INTERVAL_SECS);
+    Ok(void_gmail::connector::GmailConnector::new(
         &connection.id,
         cred_path.as_deref().and_then(|p| p.to_str()),
         store_path,
-    )))
+        poll_secs,
+    ))
 }
 
 fn setup(ctx: SetupCtx<'_>) -> Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + '_>> {

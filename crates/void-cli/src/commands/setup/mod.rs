@@ -17,6 +17,8 @@ mod wizard;
 
 use void_core::config::{self, VoidConfig};
 
+use crate::connectors;
+
 use self::config_ui::{edit_config_file, show_configuration};
 use self::connection_menu::{
     add_connection, reauthenticate_connection, remove_connection, rename_connection,
@@ -39,6 +41,7 @@ pub async fn run() -> anyhow::Result<()> {
     }
 
     let mut cfg = VoidConfig::load_or_default(&config_path);
+    warn_invalid_connections(&cfg);
     let store_path = crate::context::store_path();
     std::fs::create_dir_all(&store_path)?;
 
@@ -112,6 +115,7 @@ pub async fn run() -> anyhow::Result<()> {
                 edit_config_file(&config_path)?;
                 // Reload config after edit
                 cfg = VoidConfig::load_or_default(&config_path);
+                warn_invalid_connections(&cfg);
             }
             7 => {
                 run_full_wizard(&mut cfg, &store_path, &config_path).await?;
@@ -123,6 +127,14 @@ pub async fn run() -> anyhow::Result<()> {
             _ => {}
         }
 
+        eprintln!();
+    }
+}
+
+fn warn_invalid_connections(cfg: &VoidConfig) {
+    if let Err(e) = connectors::validate_all_connections(cfg) {
+        eprintln!("Warning: invalid connection settings in config: {e}");
+        eprintln!("Fix settings in config.toml or remove broken [[connections]] entries.");
         eprintln!();
     }
 }

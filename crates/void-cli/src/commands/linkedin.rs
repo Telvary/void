@@ -87,7 +87,8 @@ async fn run_download(args: &DownloadArgs) -> anyhow::Result<()> {
         &api_key,
         &dsn,
         &account_id,
-        cfg.sync.linkedin_poll_interval_secs(),
+        cfg.sync
+            .poll_interval_secs(void_linkedin::CONNECTOR_ID, 30 * 60),
         cfg.sync.linkedin_backfill_days(),
     );
 

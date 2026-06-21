@@ -15,13 +15,15 @@ fn default_gn_country() -> String {
     "FR".to_string()
 }
 
+const DEFAULT_POLL_INTERVAL_SECS: u64 = 3600;
+
 inventory::submit! {
     ConnectorPlugin {
         id: void_googlenews::CONNECTOR_ID,
         aliases: &["googlenews", "gn"],
         menu_label: "Google News",
         badge: "GN",
-        default_poll_interval_secs: Some(3600),
+        default_poll_interval_secs: Some(DEFAULT_POLL_INTERVAL_SECS),
         reply_id_style: ReplyIdStyle::MsgOnly,
         supports_scheduling: false,
         uses_daemon_rpc: false,
@@ -49,7 +51,8 @@ fn build(
         settings_string(&connection.settings, "language").unwrap_or_else(default_gn_language);
     let country =
         settings_string(&connection.settings, "country").unwrap_or_else(default_gn_country);
-    let poll_secs = sync.googlenews_poll_interval_secs();
+    let poll_secs =
+        sync.poll_interval_secs(void_googlenews::CONNECTOR_ID, DEFAULT_POLL_INTERVAL_SECS);
     Ok(Arc::new(
         void_googlenews::connector::GoogleNewsConnector::new(
             &connection.id,

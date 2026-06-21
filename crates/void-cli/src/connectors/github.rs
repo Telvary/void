@@ -9,13 +9,15 @@ use void_core::connector::Connector;
 
 use super::{ConnectorPlugin, ReplyIdStyle, SetupCtx};
 
+const DEFAULT_POLL_INTERVAL_SECS: u64 = 120;
+
 inventory::submit! {
     ConnectorPlugin {
         id: void_github::CONNECTOR_ID,
         aliases: &["github", "gh"],
         menu_label: "GitHub",
         badge: "GH",
-        default_poll_interval_secs: Some(120),
+        default_poll_interval_secs: Some(DEFAULT_POLL_INTERVAL_SECS),
         reply_id_style: ReplyIdStyle::MsgOnly,
         supports_scheduling: false,
         uses_daemon_rpc: false,
@@ -43,7 +45,7 @@ fn build(
     let username = settings_string(&connection.settings, "username").ok_or_else(|| {
         anyhow::anyhow!("missing username for GitHub connection '{}'", connection.id)
     })?;
-    let poll_secs = sync.github_poll_interval_secs();
+    let poll_secs = sync.poll_interval_secs(void_github::CONNECTOR_ID, DEFAULT_POLL_INTERVAL_SECS);
     Ok(Arc::new(void_github::connector::GitHubConnector::new(
         &connection.id,
         token,

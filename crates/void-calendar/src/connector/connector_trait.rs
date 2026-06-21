@@ -48,7 +48,8 @@ impl Connector for CalendarConnector {
     async fn start_sync(&self, db: Arc<Database>, cancel: CancellationToken) -> anyhow::Result<()> {
         self.initial_sync(&db).await?;
 
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        let mut interval =
+            tokio::time::interval(std::time::Duration::from_secs(self.poll_interval_secs));
         loop {
             tokio::select! {
                 _ = cancel.cancelled() => {

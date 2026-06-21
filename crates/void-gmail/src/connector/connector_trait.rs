@@ -57,7 +57,7 @@ impl Connector for GmailConnector {
     async fn start_sync(&self, db: Arc<Database>, cancel: CancellationToken) -> anyhow::Result<()> {
         self.initial_sync(&db).await?;
 
-        let mut interval = tokio::time::interval(Duration::from_secs(30));
+        let mut interval = tokio::time::interval(Duration::from_secs(self.poll_interval_secs));
         let mut last_sync = SystemTime::now();
         loop {
             tokio::select! {

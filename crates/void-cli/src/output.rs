@@ -85,9 +85,28 @@ pub fn known_connectors_csv() -> String {
     connectors::known_ids_csv()
 }
 
-/// Shared `--connector` flag description for list/search commands (see [`resolve_connector_filter`]).
-pub const CONNECTOR_FILTER_HELP: &str =
-    "Filter by connector (slack, gmail, whatsapp, calendar, telegram, hackernews, googlenews, linkedin, github)";
+/// Placeholder for clap `#[arg(help)]`; runtime `--help` is patched in [`patch_connector_arg_help`].
+pub const CONNECTOR_FILTER_HELP: &str = "Filter by connector";
+
+pub fn connector_filter_help() -> String {
+    format!("Filter by connector ({})", known_connectors_csv())
+}
+
+/// Patch `--connector` flag help on all subcommands to list registered connector ids.
+pub fn patch_connector_arg_help(cmd: &mut clap::Command) {
+    let help = connector_filter_help();
+    patch_connector_arg_help_recursive(cmd, help);
+}
+
+fn patch_connector_arg_help_recursive(cmd: &mut clap::Command, help: String) {
+    if cmd.get_arguments().any(|a| a.get_id() == "connector") {
+        let help = help.clone();
+        *cmd = cmd.clone().mut_arg("connector", move |arg| arg.help(help));
+    }
+    for sub in cmd.get_subcommands_mut() {
+        patch_connector_arg_help_recursive(sub, help.clone());
+    }
+}
 
 pub fn resolve_connector_filter(raw: Option<&str>) -> anyhow::Result<Option<String>> {
     match raw {
@@ -225,6 +244,26 @@ mod tests {
             parse_connector_type("GH"),
             Some(ConnectorType::from_static("github"))
         );
+    }
+
+    #[test]
+    fn parse_connector_type_googlenews() {
+        assert_eq!(
+            parse_connector_type("googlenews"),
+            Some(ConnectorType::from_static("googlenews"))
+        );
+        assert_eq!(
+            parse_connector_type("gn"),
+            Some(ConnectorType::from_static("googlenews"))
+        );
+    }
+
+    #[test]
+    fn connector_filter_help_lists_all_plugins() {
+        let help = connector_filter_help();
+        for p in crate::connectors::all() {
+            assert!(help.contains(p.id), "help missing plugin id {}", p.id);
+        }
     }
 
     #[test]

@@ -9,13 +9,15 @@ use void_core::connector::Connector;
 
 use super::{ConnectorPlugin, ReplyIdStyle, SetupCtx};
 
+const DEFAULT_POLL_INTERVAL_SECS: u64 = 60;
+
 inventory::submit! {
     ConnectorPlugin {
         id: void_calendar::CONNECTOR_ID,
         aliases: &["calendar", "cal", "ca"],
         menu_label: "Google Calendar",
         badge: "CA",
-        default_poll_interval_secs: Some(60),
+        default_poll_interval_secs: Some(DEFAULT_POLL_INTERVAL_SECS),
         reply_id_style: ReplyIdStyle::MsgOnly,
         supports_scheduling: false,
         uses_daemon_rpc: false,
@@ -35,17 +37,28 @@ fn session_files(store: &Path, connection_id: &str) -> Vec<PathBuf> {
 fn build(
     connection: &ConnectionConfig,
     store_path: &Path,
-    _sync: &SyncConfig,
+    sync: &SyncConfig,
 ) -> anyhow::Result<Arc<dyn Connector>> {
+    Ok(Arc::new(build_calendar(connection, store_path, sync)?))
+}
+
+pub(crate) fn build_calendar(
+    connection: &ConnectionConfig,
+    store_path: &Path,
+    sync: &SyncConfig,
+) -> anyhow::Result<void_calendar::connector::CalendarConnector> {
     let credentials_file = settings_string(&connection.settings, "credentials_file");
     let calendar_ids = settings_string_list(&connection.settings, "calendar_ids");
     let cred_path = credentials_file.as_ref().map(|f| expand_tilde(f));
-    Ok(Arc::new(void_calendar::connector::CalendarConnector::new(
+    let poll_secs =
+        sync.poll_interval_secs(void_calendar::CONNECTOR_ID, DEFAULT_POLL_INTERVAL_SECS);
+    Ok(void_calendar::connector::CalendarConnector::new(
         &connection.id,
         cred_path.as_deref().and_then(|p| p.to_str()),
         calendar_ids,
         store_path,
-    )))
+        poll_secs,
+    ))
 }
 
 fn setup(ctx: SetupCtx<'_>) -> Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + '_>> {

@@ -26,6 +26,8 @@ pub async fn run(args: &SyncArgs) -> anyhow::Result<()> {
         anyhow::bail!("No connections configured. Add connections to your config.toml first.");
     }
 
+    connectors::validate_all_connections(cfg)?;
+
     let connector_filter = resolve_connector_list(args.connectors.as_deref())?;
 
     let store_path = crate::context::store_path();

@@ -35,11 +35,25 @@ fn build(
     store_path: &Path,
     _sync: &SyncConfig,
 ) -> anyhow::Result<Arc<dyn Connector>> {
+    Ok(build_whatsapp(connection, store_path))
+}
+
+pub(crate) fn build_whatsapp_owned(
+    connection: &ConnectionConfig,
+    store_path: &Path,
+) -> void_whatsapp::connector::WhatsAppConnector {
     let session_db = store_path.join(format!("whatsapp-{}.db", connection.id));
-    Ok(Arc::new(void_whatsapp::connector::WhatsAppConnector::new(
+    void_whatsapp::connector::WhatsAppConnector::new(
         &connection.id,
         session_db.to_str().unwrap_or(""),
-    )))
+    )
+}
+
+pub(crate) fn build_whatsapp(
+    connection: &ConnectionConfig,
+    store_path: &Path,
+) -> Arc<void_whatsapp::connector::WhatsAppConnector> {
+    Arc::new(build_whatsapp_owned(connection, store_path))
 }
 
 fn setup(ctx: SetupCtx<'_>) -> Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + '_>> {

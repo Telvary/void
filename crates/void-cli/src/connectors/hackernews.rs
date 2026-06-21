@@ -7,13 +7,15 @@ use void_core::connector::Connector;
 
 use super::{ConnectorPlugin, ReplyIdStyle, SetupCtx};
 
+const DEFAULT_POLL_INTERVAL_SECS: u64 = 3600;
+
 inventory::submit! {
     ConnectorPlugin {
         id: void_hackernews::CONNECTOR_ID,
         aliases: &["hackernews", "hn"],
         menu_label: "Hacker News",
         badge: "HN",
-        default_poll_interval_secs: Some(3600),
+        default_poll_interval_secs: Some(DEFAULT_POLL_INTERVAL_SECS),
         reply_id_style: ReplyIdStyle::MsgOnly,
         supports_scheduling: false,
         uses_daemon_rpc: false,
@@ -37,7 +39,8 @@ fn build(
 ) -> anyhow::Result<Arc<dyn Connector>> {
     let keywords = settings_string_list(&connection.settings, "keywords");
     let min_score = settings_u32(&connection.settings, "min_score").unwrap_or(0);
-    let poll_secs = sync.hackernews_poll_interval_secs();
+    let poll_secs =
+        sync.poll_interval_secs(void_hackernews::CONNECTOR_ID, DEFAULT_POLL_INTERVAL_SECS);
     Ok(Arc::new(
         void_hackernews::connector::HackerNewsConnector::new(
             &connection.id,
