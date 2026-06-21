@@ -150,6 +150,8 @@ pub struct SyncConfig {
     pub linkedin_poll_interval_secs: u64,
     #[serde(default = "default_linkedin_backfill_days")]
     pub linkedin_backfill_days: u64,
+    #[serde(default = "default_github_poll")]
+    pub github_poll_interval_secs: u64,
 }
 
 impl Default for SyncConfig {
@@ -161,6 +163,7 @@ impl Default for SyncConfig {
             googlenews_poll_interval_secs: default_googlenews_poll(),
             linkedin_poll_interval_secs: default_linkedin_poll(),
             linkedin_backfill_days: default_linkedin_backfill_days(),
+            github_poll_interval_secs: default_github_poll(),
         }
     }
 }
@@ -187,6 +190,10 @@ fn default_linkedin_poll() -> u64 {
 
 fn default_linkedin_backfill_days() -> u64 {
     15
+}
+
+fn default_github_poll() -> u64 {
+    120
 }
 
 impl VoidConfig {
@@ -273,6 +280,7 @@ impl VoidConfig {
             "hackernews" => ConnectorType::HackerNews,
             "googlenews" => ConnectorType::GoogleNews,
             "linkedin" => ConnectorType::LinkedIn,
+            "github" => ConnectorType::GitHub,
             _ => return None,
         };
         self.connections.iter().find(|a| a.connector_type == target)

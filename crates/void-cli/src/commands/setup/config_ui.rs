@@ -32,6 +32,10 @@ pub(crate) fn show_configuration(config_path: &Path, cfg: &VoidConfig) {
         "  linkedin_backfill_days        = {}",
         cfg.sync.linkedin_backfill_days
     );
+    eprintln!(
+        "  github_poll_interval_secs     = {}",
+        cfg.sync.github_poll_interval_secs
+    );
     eprintln!();
 
     if cfg.connections.is_empty() {
@@ -121,6 +125,10 @@ pub(crate) fn show_configuration(config_path: &Path, cfg: &VoidConfig) {
                     eprintln!("    api_key:    {}", config::redact_token(api_key));
                     eprintln!("    dsn:        {dsn}");
                     eprintln!("    account_id: {account_id}");
+                }
+                config::ConnectionSettings::GitHub { token, username } => {
+                    eprintln!("    token:    {}", config::redact_token(token));
+                    eprintln!("    username: {username}");
                 }
             }
         }
