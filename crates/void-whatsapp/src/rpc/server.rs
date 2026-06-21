@@ -19,6 +19,18 @@ pub struct Server {
     store_path: PathBuf,
 }
 
+/// RAII guard that removes the IPC endpoint when dropped, covering panics and
+/// early returns that would otherwise leave a stale socket / named pipe.
+#[cfg(unix)]
+struct EndpointCleanup(PathBuf);
+
+#[cfg(unix)]
+impl Drop for EndpointCleanup {
+    fn drop(&mut self) {
+        remove_stale_endpoint(&self.0);
+    }
+}
+
 impl Server {
     pub fn new(store_path: &Path) -> Self {
         Self {
@@ -38,7 +50,7 @@ impl Server {
         !self.handlers.read().await.is_empty()
     }
 
-    pub async fn run(self, cancel: CancellationToken) -> anyhow::Result<()> {
+    pub async fn run(&self, cancel: CancellationToken) -> anyhow::Result<()> {
         if !self.has_handlers().await {
             return Ok(());
         }
@@ -47,10 +59,13 @@ impl Server {
         remove_stale_endpoint(&endpoint);
         info!(endpoint = %display_endpoint(&endpoint), "starting WhatsApp RPC server");
 
+        let handlers = Arc::clone(&self.handlers);
+
         #[cfg(unix)]
         {
             use tokio::net::UnixListener;
             let listener = UnixListener::bind(&endpoint)?;
+            let _cleanup = EndpointCleanup(endpoint.clone());
             loop {
                 tokio::select! {
                     _ = cancel.cancelled() => {
@@ -60,7 +75,7 @@ impl Server {
                     accept = listener.accept() => {
                         match accept {
                             Ok((stream, _)) => {
-                                let handlers = Arc::clone(&self.handlers);
+                                let handlers = Arc::clone(&handlers);
                                 tokio::spawn(async move {
                                     if let Err(e) = handle_connection(stream, handlers).await {
                                         debug!("WhatsApp RPC connection error: {e}");
@@ -74,23 +89,16 @@ impl Server {
                     }
                 }
             }
-            drop(listener);
-            remove_stale_endpoint(&endpoint);
+            // _cleanup Drop removes the socket
         }
 
         #[cfg(windows)]
         {
             use tokio::net::windows::named_pipe::ServerOptions;
-            // Only the first instance of a named pipe may set `first_pipe_instance`;
-            // every subsequent instance must be created without it. Create the next
-            // instance before handing the connected one to the handler so the next
-            // client can connect immediately.
             let mut server = ServerOptions::new()
                 .first_pipe_instance(true)
                 .create(&endpoint)?;
             loop {
-                // Resolve the connect (or cancellation) before touching `server`,
-                // so its borrow ends before we move it into the handler.
                 let connect = tokio::select! {
                     _ = cancel.cancelled() => {
                         info!("WhatsApp RPC server shutting down");
@@ -104,7 +112,7 @@ impl Server {
                     warn!("WhatsApp RPC pipe connect error: {e}");
                     continue;
                 }
-                let handlers = Arc::clone(&self.handlers);
+                let handlers = Arc::clone(&handlers);
                 tokio::spawn(async move {
                     if let Err(e) = handle_connection(connected, handlers).await {
                         debug!("WhatsApp RPC connection error: {e}");

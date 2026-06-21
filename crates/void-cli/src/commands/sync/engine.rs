@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use tokio::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use void_core::models::ConnectorType;
@@ -14,6 +15,10 @@ use crate::commands::connector_factory;
 use crate::output::{resolve_connector_filter, resolve_connector_list};
 
 use super::SyncArgs;
+
+const MAX_CONSECUTIVE_FAILURES: u32 = 10;
+const STABLE_THRESHOLD: Duration = Duration::from_secs(60);
+const MAX_BACKOFF: Duration = Duration::from_secs(300);
 
 pub async fn run(args: &SyncArgs) -> anyhow::Result<()> {
     let cfg = crate::context::config();
@@ -194,9 +199,7 @@ pub async fn run(args: &SyncArgs) -> anyhow::Result<()> {
     if wa_rpc.has_handlers().await {
         let cancel_rpc = cancel.clone();
         tokio::spawn(async move {
-            if let Err(e) = wa_rpc.run(cancel_rpc).await {
-                error!("WhatsApp RPC server stopped: {e}");
-            }
+            supervise_rpc(&wa_rpc, cancel_rpc).await;
         });
     }
 
@@ -222,7 +225,47 @@ pub async fn run(args: &SyncArgs) -> anyhow::Result<()> {
     });
 
     let engine = SyncEngine::new(connectors, db, &store_path, hook_runner);
-    engine.run(cancel).await
+    engine.run_supervised(cancel).await
+}
+
+async fn supervise_rpc(server: &WhatsAppRpcServer, cancel: CancellationToken) {
+    let mut failures = 0u32;
+    loop {
+        if cancel.is_cancelled() {
+            break;
+        }
+        let started = Instant::now();
+        match server.run(cancel.clone()).await {
+            Ok(()) => break,
+            Err(e) => {
+                if cancel.is_cancelled() {
+                    break;
+                }
+                if started.elapsed() > STABLE_THRESHOLD {
+                    failures = 0;
+                }
+                failures += 1;
+                if failures >= MAX_CONSECUTIVE_FAILURES {
+                    error!("WhatsApp RPC server failed {failures} times, giving up: {e}");
+                    break;
+                }
+                let delay = backoff_delay(failures);
+                error!(
+                    attempt = failures,
+                    "WhatsApp RPC server crashed: {e} — restarting in {delay:?}"
+                );
+                tokio::select! {
+                    _ = cancel.cancelled() => break,
+                    _ = tokio::time::sleep(delay) => {},
+                }
+            }
+        }
+    }
+}
+
+fn backoff_delay(attempt: u32) -> Duration {
+    Duration::from_secs(5u64.saturating_mul(2u64.saturating_pow(attempt.saturating_sub(1).min(6))))
+        .min(MAX_BACKOFF)
 }
 
 fn apply_ignore_rules(db: &Database, rules: &[(String, Vec<String>)]) {
