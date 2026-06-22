@@ -4,6 +4,7 @@ mod archive;
 mod inbox;
 mod lookup;
 mod read;
+mod saved;
 mod upsert;
 
 /// SQL clause that keeps only the most recent message per `context_id`,
@@ -34,4 +35,5 @@ pub use lookup::{
 pub use read::{
     count_for_conversation, count_recent, get, latest_timestamp, list_for_conversation, list_recent,
 };
+pub use saved::{count_saved, list_saved, reconcile_saved};
 pub use upsert::{message_exists, upsert_row};
