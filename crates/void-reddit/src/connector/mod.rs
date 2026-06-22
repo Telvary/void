@@ -59,7 +59,7 @@ impl RedditConnector {
 #[async_trait]
 impl Connector for RedditConnector {
     fn connector_type(&self) -> ConnectorType {
-        ConnectorType::Reddit
+        ConnectorType::from_static(crate::CONNECTOR_ID)
     }
 
     fn connection_id(&self) -> &str {
@@ -93,7 +93,7 @@ impl Connector for RedditConnector {
         let ok = client.subreddit_hot("all", 1).await.is_ok();
         Ok(HealthStatus {
             connection_id: self.config_id.clone(),
-            connector_type: ConnectorType::Reddit,
+            connector_type: ConnectorType::from_static(crate::CONNECTOR_ID),
             ok,
             message: if ok {
                 if self.refresh_token.is_some() {

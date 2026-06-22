@@ -333,6 +333,7 @@ pub(crate) fn build_post_body_message(
         timestamp,
         synced_at: Some(chrono::Utc::now().timestamp()),
         is_archived: false,
+        is_saved: false,
         reply_to_id: None,
         media_type: None,
         metadata: Some(serde_json::json!({
@@ -374,6 +375,7 @@ pub(crate) fn build_comment_message(
         timestamp,
         synced_at: Some(chrono::Utc::now().timestamp()),
         is_archived: false,
+        is_saved: false,
         reply_to_id: None,
         media_type: None,
         metadata: Some(serde_json::json!({
@@ -458,6 +460,7 @@ pub(crate) fn build_message(
         timestamp,
         synced_at: Some(chrono::Utc::now().timestamp()),
         is_archived: false,
+        is_saved: false,
         reply_to_id: None,
         media_type: None,
         metadata: Some(metadata),

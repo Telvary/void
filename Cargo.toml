@@ -12,6 +12,7 @@ members = [
     "crates/void-googlenews",
     "crates/void-linkedin",
     "crates/void-reddit",
+    "crates/void-github",
 ]
 
 [workspace.package]
@@ -65,6 +66,7 @@ url = "2"
 urlencoding = "2"
 dirs = "6"
 sysinfo = "0.39.3"
+inventory = "0.3"
 
 # Testing
 wiremock = "0.6"
@@ -85,3 +87,4 @@ void-hackernews = { path = "crates/void-hackernews" }
 void-googlenews = { path = "crates/void-googlenews" }
 void-linkedin = { path = "crates/void-linkedin" }
 void-reddit = { path = "crates/void-reddit" }
+void-github = { path = "crates/void-github" }

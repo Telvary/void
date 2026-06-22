@@ -1901,6 +1901,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "inventory"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4419,6 +4428,7 @@ dependencies = [
  "clap",
  "croner",
  "insta",
+ "inventory",
  "libc",
  "open",
  "predicates",
@@ -4428,12 +4438,14 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
+ "toml 1.1.2+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
  "urlencoding",
  "uuid",
  "void-calendar",
  "void-core",
+ "void-github",
  "void-gmail",
  "void-googlenews",
  "void-hackernews",
@@ -4465,6 +4477,24 @@ dependencies = [
  "toml 1.1.2+spec-1.1.0",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "void-github"
+version = "0.10.3"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "void-core",
+ "wiremock",
 ]
 
 [[package]]

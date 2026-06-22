@@ -1,6 +1,9 @@
 mod oauth;
 
-use void_core::config::{ConnectionConfig, ConnectionSettings, VoidConfig};
+use void_core::config::{
+    empty_settings, settings_set_opt_string, settings_set_string, settings_set_string_list,
+    settings_set_u32, ConnectionConfig, VoidConfig,
+};
 use void_core::models::ConnectorType;
 
 use super::auth::{pick_connector_action, ConnectorAction};
@@ -19,12 +22,13 @@ pub(crate) async fn setup_reddit(cfg: &mut VoidConfig, add_only: bool) -> anyhow
         oauth_uri = oauth::REDIRECT_URI
     );
 
+    let reddit_type = ConnectorType::from_static(void_reddit::CONNECTOR_ID);
     if !add_only {
         let existing: Vec<usize> = cfg
             .connections
             .iter()
             .enumerate()
-            .filter(|(_, a)| a.connector_type == ConnectorType::Reddit)
+            .filter(|(_, a)| a.connector_type == reddit_type)
             .map(|(i, _)| i)
             .collect();
 
@@ -100,18 +104,19 @@ pub(crate) async fn setup_reddit(cfg: &mut VoidConfig, add_only: bool) -> anyhow
 
     let connection_id = prompt_default("\nAccount name", "reddit");
 
+    let mut settings = empty_settings();
+    settings_set_string(&mut settings, "client_id", client_id.trim());
+    settings_set_string(&mut settings, "client_secret", client_secret.trim());
+    settings_set_opt_string(&mut settings, "refresh_token", refresh_token);
+    settings_set_string_list(&mut settings, "subreddits", &subreddits);
+    settings_set_string_list(&mut settings, "keywords", &keywords);
+    settings_set_u32(&mut settings, "min_score", min_score);
+
     let connection = ConnectionConfig {
         id: connection_id,
-        connector_type: ConnectorType::Reddit,
+        connector_type: reddit_type,
         ignore_conversations: vec![],
-        settings: ConnectionSettings::Reddit {
-            client_id: client_id.trim().to_string(),
-            client_secret: client_secret.trim().to_string(),
-            refresh_token,
-            subreddits,
-            keywords,
-            min_score,
-        },
+        settings,
     };
 
     cfg.connections.push(connection);

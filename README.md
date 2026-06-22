@@ -7,7 +7,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.95%2B-orange.svg)](Cargo.toml)
 
-**One inbox for everything.** `void` unifies WhatsApp, Telegram, Slack, Gmail, Google Calendar, LinkedIn, Hacker News, Google News, and Reddit into a single local-first command-line tool — one inbox, one search index, one set of commands.
+**One inbox for everything.** `void` unifies WhatsApp, Telegram, Slack, Gmail, Google Calendar, LinkedIn, GitHub, Hacker News, Google News, and Reddit into a single local-first command-line tool — one inbox, one search index, one set of commands.
 
 It is built for terminals, shell scripts, and AI agents:
 
@@ -162,14 +162,14 @@ A background daemon keeps a local SQLite database in sync with every connected s
   void ◄──────────► SQLite (FTS5) ◄────── sync daemon ──────► services
                                               │
         WhatsApp │ Telegram │ Slack ──── push (WebSocket / MTProto)
-        Gmail │ Calendar │ LinkedIn │ HN │ Google News │ Reddit ──── polling
+        Gmail │ Calendar │ LinkedIn │ GitHub │ HN │ Google News │ Reddit ──── polling
 ```
 
 | Crate | Role |
 |-------|------|
 | `void-core` | Config, database, models, hooks, `Connector` trait, sync engine |
 | `void-cli` | The `void` binary: clap commands, output formatting |
-| `void-slack`, `void-gmail`, `void-calendar`, `void-whatsapp`, `void-telegram`, `void-hackernews`, `void-googlenews`, `void-linkedin`, `void-reddit` | One crate per connector |
+| `void-slack`, `void-gmail`, `void-calendar`, `void-whatsapp`, `void-telegram`, `void-hackernews`, `void-googlenews`, `void-linkedin`, `void-github`, `void-reddit` | One crate per connector |
 
 All data stays on your machine in `~/.local/share/void` — no external database, no Docker, no cloud. Layout details: [Configuration](docs/configuration.md#data-storage-layout).
 

@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 
 use crate::commands;
 use crate::context;
@@ -112,7 +112,10 @@ fn refresh_policy_for_cli(cli: &Cli) -> void_core::store::RefreshPolicy {
 }
 
 pub fn run() -> anyhow::Result<()> {
-    let cli = Cli::parse();
+    let mut cmd = Cli::command();
+    crate::output::patch_connector_arg_help(&mut cmd);
+    let matches = cmd.get_matches();
+    let cli = Cli::from_arg_matches(&matches)?;
 
     let refresh = refresh_policy_for_cli(&cli);
     context::init(
@@ -296,10 +299,59 @@ mod tests {
     }
 
     #[test]
+    fn slack_saved_uses_local_cache() {
+        let cli = parse(&["void", "slack", "saved"]);
+        let cmd = cli.command.as_ref().expect("command");
+        assert!(context::runs_with_local_cache(cmd));
+    }
+
+    #[test]
     fn reddit_min_score_uses_remote_proxy_in_remote_mode() {
         let cli = parse(&["void", "reddit", "min-score", "100"]);
         let cmd = cli.command.as_ref().expect("command");
         assert!(!context::runs_with_local_cache(cmd));
+    }
+
+    #[test]
+    fn parse_slack_saved_minimal() {
+        let cli = parse(&["void", "slack", "saved"]);
+        match cli.command {
+            Some(Command::Slack(ref args)) => match &args.command {
+                commands::slack::SlackCommand::Saved(saved) => {
+                    assert!(saved.connection.is_none());
+                    assert_eq!(saved.size, 50);
+                    assert_eq!(saved.page, 1);
+                }
+                other => panic!("expected Saved, got {other:?}"),
+            },
+            other => panic!("expected Slack, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_slack_saved_with_filters() {
+        let cli = parse(&[
+            "void",
+            "slack",
+            "saved",
+            "--connection",
+            "slack-gladia",
+            "-n",
+            "10",
+            "--page",
+            "2",
+        ]);
+        match cli.command {
+            Some(Command::Slack(ref args)) => match &args.command {
+                commands::slack::SlackCommand::Saved(saved) => {
+                    assert_eq!(saved.connection.as_deref(), Some("slack-gladia"));
+                    assert_eq!(saved.size, 10);
+                    assert_eq!(saved.page, 2);
+                }
+                other => panic!("expected Saved, got {other:?}"),
+            },
+            other => panic!("expected Slack, got {other:?}"),
+        }
     }
 
     // --- Gmail forward parsing ---

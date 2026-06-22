@@ -1,6 +1,9 @@
 use clap::{Args, Subcommand};
 
-use void_core::config::{redact_token, ConnectionConfig, ConnectionSettings, VoidConfig};
+use void_core::config::{
+    redact_token, settings_set_string_list, settings_set_u32, settings_string,
+    settings_string_list, settings_u32, ConnectionConfig, VoidConfig,
+};
 use void_core::models::ConnectorType;
 use void_reddit::api::sanitize_subreddit;
 
@@ -222,78 +225,46 @@ fn reddit_connection_not_found() -> anyhow::Error {
 fn find_reddit_connection(cfg: &VoidConfig) -> anyhow::Result<&ConnectionConfig> {
     cfg.connections
         .iter()
-        .find(|c| c.connector_type == ConnectorType::Reddit)
+        .find(|c| c.connector_type == ConnectorType::from_static(void_reddit::CONNECTOR_ID))
         .ok_or_else(reddit_connection_not_found)
 }
 
 fn find_reddit_connection_mut(cfg: &mut VoidConfig) -> anyhow::Result<&mut ConnectionConfig> {
     cfg.connections
         .iter_mut()
-        .find(|c| c.connector_type == ConnectorType::Reddit)
+        .find(|c| c.connector_type == ConnectorType::from_static(void_reddit::CONNECTOR_ID))
         .ok_or_else(reddit_connection_not_found)
 }
 
 fn get_reddit_settings(cfg: &VoidConfig) -> anyhow::Result<RedditSettings> {
     let conn = find_reddit_connection(cfg)?;
-    match &conn.settings {
-        ConnectionSettings::Reddit {
-            client_id,
-            client_secret,
-            subreddits,
-            keywords,
-            min_score,
-            ..
-        } => Ok(RedditSettings {
-            client_id: client_id.clone(),
-            client_secret: client_secret.clone(),
-            subreddits: subreddits.clone(),
-            keywords: keywords.clone(),
-            min_score: *min_score,
-        }),
-        _ => anyhow::bail!("Unexpected settings type for Reddit connection"),
-    }
+    Ok(RedditSettings {
+        client_id: settings_string(&conn.settings, "client_id")
+            .ok_or_else(|| anyhow::anyhow!("missing client_id"))?,
+        client_secret: settings_string(&conn.settings, "client_secret")
+            .ok_or_else(|| anyhow::anyhow!("missing client_secret"))?,
+        subreddits: settings_string_list(&conn.settings, "subreddits"),
+        keywords: settings_string_list(&conn.settings, "keywords"),
+        min_score: settings_u32(&conn.settings, "min_score").unwrap_or(0),
+    })
 }
 
 fn set_reddit_subreddits(cfg: &mut VoidConfig, subreddits: Vec<String>) -> anyhow::Result<()> {
     let conn = find_reddit_connection_mut(cfg)?;
-    match &mut conn.settings {
-        ConnectionSettings::Reddit {
-            subreddits: ref mut subs,
-            ..
-        } => {
-            *subs = subreddits;
-            Ok(())
-        }
-        _ => anyhow::bail!("Unexpected settings type for Reddit connection"),
-    }
+    settings_set_string_list(&mut conn.settings, "subreddits", &subreddits);
+    Ok(())
 }
 
 fn set_reddit_keywords(cfg: &mut VoidConfig, keywords: Vec<String>) -> anyhow::Result<()> {
     let conn = find_reddit_connection_mut(cfg)?;
-    match &mut conn.settings {
-        ConnectionSettings::Reddit {
-            keywords: ref mut kw,
-            ..
-        } => {
-            *kw = keywords;
-            Ok(())
-        }
-        _ => anyhow::bail!("Unexpected settings type for Reddit connection"),
-    }
+    settings_set_string_list(&mut conn.settings, "keywords", &keywords);
+    Ok(())
 }
 
 fn set_reddit_min_score(cfg: &mut VoidConfig, score: u32) -> anyhow::Result<()> {
     let conn = find_reddit_connection_mut(cfg)?;
-    match &mut conn.settings {
-        ConnectionSettings::Reddit {
-            min_score: ref mut ms,
-            ..
-        } => {
-            *ms = score;
-            Ok(())
-        }
-        _ => anyhow::bail!("Unexpected settings type for Reddit connection"),
-    }
+    settings_set_u32(&mut conn.settings, "min_score", score);
+    Ok(())
 }
 
 fn parse_keywords(s: &str) -> Vec<String> {

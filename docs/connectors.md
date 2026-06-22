@@ -13,6 +13,7 @@ Every connector is added through the same flow: run `void setup`, pick the servi
 | [Hacker News](#hacker-news) | None — public API | HN API polling |
 | [Google News](#google-news) | None — public RSS | Google News RSS polling |
 | [Reddit](#reddit) | Reddit app OAuth | Reddit API polling |
+| [GitHub](#github) | Personal Access Token | GitHub REST API polling |
 
 ## WhatsApp
 
@@ -162,6 +163,32 @@ void send --via reddit --to reddit_reddit_post_abc123 --message "Great post!"
 ```
 
 `void reply` targets a post-body or comment message inside a synced thread (the conversations created when commenting is enabled). To comment on a post that only appears in the subreddit feed, use `void send --via reddit --to <post-id>` instead.
+
+## GitHub
+
+GitHub syncs actionable activity into your inbox (read-only):
+
+- Open pull requests requesting your review
+- Comments on pull requests you authored
+- @mentions of your handle
+
+1. Create a [GitHub Personal Access Token](https://github.com/settings/tokens) with at least the `notifications` scope
+2. For private repositories, also grant `repo` (classic PAT) or Pull requests read access (fine-grained PAT)
+3. Run `void setup`, select GitHub, and paste the token
+
+```toml
+[[connections]]
+id = "github"
+type = "github"
+token = "ghp_..."
+username = "your-github-handle"
+```
+
+Each repository appears as its own conversation. Mute noisy repos with `void mute owner/repo` or add them to `ignore_conversations`:
+
+```toml
+ignore_conversations = ["facebook/react", "kubernetes"]
+```
 
 ## Multiple accounts
 
