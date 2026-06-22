@@ -118,6 +118,7 @@ async fn sync_review_requests(
             timestamp,
             synced_at: Some(Utc::now().timestamp()),
             is_archived: false,
+            is_saved: false,
             reply_to_id: None,
             media_type: None,
             metadata: Some(serde_json::json!({
@@ -212,6 +213,7 @@ async fn sync_notifications(
             timestamp,
             synced_at: Some(Utc::now().timestamp()),
             is_archived: false,
+            is_saved: false,
             reply_to_id: None,
             media_type: None,
             metadata: Some(serde_json::json!({
